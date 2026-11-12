@@ -8,6 +8,12 @@ from ortools.sat.python import cp_model
 from ingles.domain import group_level, slots, teacher_buildings, transfer_conflict, validate_bundle
 
 
+def solve_relational(snapshot, excluded=None, minimum_coverage=0):
+    """Punto de entrada del modelo relacional; conserva el solver legado para app.py."""
+    from ingles.relational_scheduler import solve_snapshot
+    return solve_snapshot(snapshot, excluded=excluded, minimum_coverage=minimum_coverage)
+
+
 @dataclass
 class SolveResult:
     status: str
