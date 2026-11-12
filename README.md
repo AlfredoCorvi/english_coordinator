@@ -2,6 +2,8 @@
 
 Aplicación local en **Streamlit**, con persistencia SQLite y asignación mediante **OR-Tools CP-SAT**. Reúne estudiantes de distintas carreras, forma grupos, asigna docentes y salones, audita las restricciones y exporta Excel y PDF.
 
+Documentación funcional: [casos de uso, actores y reglas de negocio](docs/casos_de_uso.md).
+
 ## Iniciar en Windows
 
 Desde `C:\Users\josea\software_projects\hackaton`:
