@@ -26,17 +26,454 @@ bundle, revision = store.load()
 PAGES = ["Vista general", "Datos", "Bloques y reglas", "Generar", "Resultados", "Auditoría"]
 
 st.markdown("""<style>
- .block-container {padding-top:2.1rem; max-width:1450px;}
- h1,h2,h3 {letter-spacing:-.035em;}
- [data-testid="stSidebar"] {border-right:1px solid #dce5ed;}
- [data-testid="stMetric"] {background:white;border:1px solid #dce5ed;border-radius:14px;padding:17px 20px;}
- .eyebrow {font-size:.74rem;letter-spacing:.16em;color:#167c80;font-weight:700;margin-bottom:8px;}
- .hero {background:#17324d;color:white;border-radius:18px;padding:30px 34px;margin:10px 0 24px;}
- .hero h2 {color:white;margin:0 0 8px;font-size:2rem;}
- .hero p {color:#d8e6ee;margin:0;max-width:820px;}
- .step {color:#167c80;font-weight:700;font-size:.8rem;letter-spacing:.06em;}
- div.stButton > button[kind="primary"] {border-radius:9px;}
- </style>""", unsafe_allow_html=True)
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Base typography */
+html, body, [class*="css"], .stMarkdown, p, span, label, input, button {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Page Layout */
+.block-container {
+    padding-top: 1.8rem !important;
+    padding-bottom: 4rem !important;
+    max-width: 1440px !important;
+}
+
+/* Headings */
+h1 {
+    font-weight: 800 !important;
+    letter-spacing: -0.04em !important;
+    color: #0F172A !important;
+    font-size: 2.15rem !important;
+    margin-bottom: 0.35rem !important;
+}
+
+h2 {
+    font-weight: 700 !important;
+    letter-spacing: -0.03em !important;
+    color: #1E293B !important;
+    font-size: 1.55rem !important;
+}
+
+h3 {
+    font-weight: 700 !important;
+    letter-spacing: -0.025em !important;
+    color: #334155 !important;
+    font-size: 1.22rem !important;
+}
+
+/* Header bar */
+.top-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 12px 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.top-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.top-brand-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #0F766E, #0D9488);
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: white;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.2);
+}
+
+.top-brand-text {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: #0F766E;
+    text-transform: uppercase;
+}
+
+.status-badge-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    border-radius: 9999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #166534;
+}
+
+.status-pulse {
+    width: 8px;
+    height: 8px;
+    background: #22C55E;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+}
+
+/* Hero Section */
+.hero-card {
+    position: relative;
+    background: linear-gradient(135deg, #0F172A 0%, #1E293B 55%, #0F766E 100%);
+    border-radius: 20px;
+    padding: 36px 42px;
+    margin: 8px 0 26px;
+    color: #FFFFFF;
+    box-shadow: 0 14px 34px -10px rgba(15, 23, 42, 0.3);
+    overflow: hidden;
+}
+
+.hero-card::after {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(circle, rgba(20, 184, 166, 0.25) 0%, rgba(20, 184, 166, 0) 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.hero-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #99F6E4;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    backdrop-filter: blur(8px);
+}
+
+.hero-card h2 {
+    color: #FFFFFF !important;
+    font-size: 2.15rem !important;
+    font-weight: 800 !important;
+    margin: 0 0 10px 0 !important;
+    letter-spacing: -0.04em !important;
+}
+
+.hero-card p {
+    color: #E2E8F0 !important;
+    font-size: 1.02rem !important;
+    line-height: 1.55 !important;
+    margin: 0 !important;
+    max-width: 820px !important;
+}
+
+/* Metric Cards */
+[data-testid="stMetric"] {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 16px !important;
+    padding: 20px 22px !important;
+    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.04), 0 1px 3px -1px rgba(0, 0, 0, 0.02) !important;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 10px 22px -4px rgba(15, 23, 42, 0.08) !important;
+    border-color: #CBD5E1 !important;
+}
+
+[data-testid="stMetric"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #0F766E, #14B8A6);
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+    color: #64748B !important;
+    text-transform: uppercase !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 1.95rem !important;
+    font-weight: 800 !important;
+    color: #0F172A !important;
+    letter-spacing: -0.04em !important;
+    margin-top: 4px !important;
+}
+
+/* Step badges */
+.step-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: #F0FDFA;
+    color: #0F766E;
+    border: 1px solid #CCFBF1;
+    border-radius: 8px;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+}
+
+/* Sidebar Custom Styling */
+[data-testid="stSidebar"] {
+    background: #F8FAFC !important;
+    border-right: 1px solid #E2E8F0 !important;
+}
+
+.sidebar-header-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px 18px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #E2E8F0;
+}
+
+.sidebar-icon-box {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #0F766E 0%, #0369A1 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
+}
+
+.sidebar-app-name {
+    font-size: 1.08rem;
+    font-weight: 800;
+    color: #0F172A;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+}
+
+.sidebar-app-sub {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #0F766E;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 3px;
+}
+
+.sidebar-info-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-top: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.sidebar-info-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #475569;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sidebar-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #F1F5F9;
+    font-size: 0.78rem;
+    color: #475569;
+}
+
+.sidebar-info-row:last-child {
+    border-bottom: none;
+}
+
+.sidebar-info-row strong {
+    color: #0F172A;
+    font-weight: 600;
+}
+
+/* Sidebar Radio Navigation */
+[data-testid="stSidebar"] [data-testid="stRadio"] label {
+    padding: 9px 14px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    margin: 2px 0;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #334155;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+    background: #FFFFFF;
+    border-color: #E2E8F0;
+    color: #0F172A;
+}
+
+/* Buttons */
+div.stButton > button {
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    padding: 0.48rem 1.15rem !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    letter-spacing: -0.01em !important;
+}
+
+div.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%) !important;
+    border: none !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25) !important;
+}
+
+div.stButton > button[kind="primary"]:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 18px rgba(15, 118, 110, 0.35) !important;
+}
+
+div.stButton > button[kind="secondary"], div.stButton > button:not([kind="primary"]) {
+    background: #FFFFFF !important;
+    border: 1px solid #CBD5E1 !important;
+    color: #334155 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+div.stButton > button[kind="secondary"]:hover, div.stButton > button:not([kind="primary"]):hover {
+    background: #F8FAFC !important;
+    border-color: #94A3B8 !important;
+    color: #0F172A !important;
+    transform: translateY(-1px) !important;
+}
+
+div.stDownloadButton > button {
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    padding: 0.48rem 1.15rem !important;
+    border: 1px solid #CBD5E1 !important;
+    background: #FFFFFF !important;
+    color: #0F766E !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    transition: all 0.2s ease !important;
+}
+
+div.stDownloadButton > button:hover {
+    background: #F0FDFA !important;
+    border-color: #0F766E !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background-color: #F1F5F9;
+    padding: 5px;
+    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+    margin-bottom: 22px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 38px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.86rem;
+    color: #64748B;
+    border: none !important;
+    background-color: transparent;
+    padding: 0 16px;
+    transition: all 0.15s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: #0F172A;
+    background-color: rgba(255, 255, 255, 0.6);
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #FFFFFF !important;
+    color: #0F766E !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Form styling */
+[data-testid="stForm"] {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+/* Dataframe containers */
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* Expanders */
+[data-testid="stExpander"] {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    margin: 12px 0;
+}
+
+[data-testid="stExpander"] details summary {
+    font-weight: 600;
+    color: #0F172A;
+    border-radius: 12px;
+}
+
+/* Alerts */
+[data-testid="stAlert"] {
+    border-radius: 12px !important;
+    border: 1px solid transparent !important;
+    padding: 14px 18px !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
+}
+</style>""", unsafe_allow_html=True)
 
 
 def go(page, tab=None):
@@ -179,7 +616,7 @@ def draw_calendar(rows, settings):
             row[day] = "Receso · sin clases" if pause else "\n".join(f"{r['Grupo Inglés']} · E{r['Edificio']}/{r['Salón']}" for r in rows if r["Día"] == day and r["Periodo"] == i)
         grid.append(row)
     table = pd.DataFrame(grid).set_index("Hora")
-    styled = table.style.map(lambda v: "background-color:#fff0d5;color:#805715" if v == "Receso · sin clases" else ("background-color:#dcefed;color:#14575c;font-weight:600" if v else "color:#9ba9b5"))
+    styled = table.style.map(lambda v: "background-color:#FEF3C7;color:#92400E;font-weight:600" if v == "Receso · sin clases" else ("background-color:#CCFBF1;color:#0F766E;font-weight:700" if v else "color:#94A3B8"))
     lines = max((row[day].count("\n") + 1 for row in grid for day in DAYS), default=1)
     st.dataframe(styled, width="stretch", row_height=max(65, 21 * lines + 20))
 
@@ -190,23 +627,73 @@ if "next_tab" in st.session_state:
     key, label = st.session_state.pop("next_tab")
     st.session_state[key] = label
 with st.sidebar:
-    st.markdown("### 📚 Inglés")
-    st.caption("PLANEACIÓN ACADÉMICA")
+    st.markdown("""
+    <div class="sidebar-header-card">
+        <div class="sidebar-icon-box">📚</div>
+        <div>
+            <div class="sidebar-app-name">Coordinación</div>
+            <div class="sidebar-app-sub">Planeación de Inglés</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     page = st.radio("Navegación", PAGES, key="nav", label_visibility="collapsed")
-    st.divider()
-    st.caption(f"Datos guardados · versión {revision}")
-    st.caption(f"Lunes a viernes · 7 periodos de {bundle['settings']['period_minutes']} min por bloque")
-    st.caption(f"Receso: {bundle['settings']['break_start']}–{bundle['settings']['break_end']}")
-    st.caption(f"Jornada: {bundle['settings']['start_time']}–{bundle['settings']['end_time']}")
-    st.caption("Edificios 1, 2, 3, 4 e Idiomas")
-    st.caption("Coordinación local · SQLite")
+    st.markdown(f"""
+    <div class="sidebar-info-card">
+        <div class="sidebar-info-title">
+            <span>Estado del Sistema</span>
+            <span style="color:#0F766E;">● Activo</span>
+        </div>
+        <div class="sidebar-info-row">
+            <span>Versión de datos:</span>
+            <strong>v{revision}</strong>
+        </div>
+        <div class="sidebar-info-row">
+            <span>Bloque semanal:</span>
+            <strong>7 periodos ({bundle['settings']['period_minutes']} min)</strong>
+        </div>
+        <div class="sidebar-info-row">
+            <span>Receso:</span>
+            <strong>{bundle['settings']['break_start']} – {bundle['settings']['break_end']}</strong>
+        </div>
+        <div class="sidebar-info-row">
+            <span>Jornada:</span>
+            <strong>{bundle['settings']['start_time']} – {bundle['settings']['end_time']}</strong>
+        </div>
+        <div class="sidebar-info-row">
+            <span>Espacios:</span>
+            <strong>Edif. 1-4 e Idiomas</strong>
+        </div>
+        <div class="sidebar-info-row">
+            <span>Base de datos:</span>
+            <strong>SQLite Local</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 if "flash" in st.session_state:
     st.toast(st.session_state.pop("flash"), icon="✅", duration=4)
-st.markdown('<div class="eyebrow">COORDINACIÓN DE INGLÉS / HORARIOS Y GRUPOS</div>', unsafe_allow_html=True)
+
+st.markdown(f"""
+<div class="top-header-bar">
+    <div class="top-brand">
+        <div class="top-brand-icon">📚</div>
+        <span class="top-brand-text">Coordinación de Inglés · Horarios y Grupos</span>
+    </div>
+    <div class="status-badge-live">
+        <div class="status-pulse"></div>
+        <span>Datos v{revision} · Base activa</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 if page == "Vista general":
-    st.markdown('<div class="hero"><h2>Un lugar para organizar cada grupo.</h2><p>Reúne alumnos, docentes y espacios. Genera una propuesta de horarios y revisa cada asignación antes de compartirla.</p></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="hero-card">
+        <div class="hero-tag">✨ Sistema Inteligente de Horarios</div>
+        <h2>Un lugar para organizar cada grupo.</h2>
+        <p>Reúne alumnos, docentes y espacios. Genera una propuesta de horarios y revisa cada asignación antes de compartirla.</p>
+    </div>
+    """, unsafe_allow_html=True)
     cols = st.columns(4)
     for col, kind, name in zip(cols, ["students", "teachers", "rooms", "blocks"], ["Alumnos", "Docentes", "Salones", "Bloques"]):
         col.metric(name, len(bundle[kind]))
@@ -214,7 +701,7 @@ if page == "Vista general":
     for col, number, title, detail, target in zip(st.columns(3), ["01", "02", "03"], ["Reúne la información", "Define la semana", "Revisa el resultado"],
         ["Carga los Excel y corrige los registros antes de guardarlos.", "Configura bloques, cupos y disponibilidad de los espacios.", "Comprueba grupos, carga docente y conflictos; exporta los resultados."], ["Datos", "Bloques y reglas", "Generar"]):
         with col.container(border=True):
-            st.markdown(f'<div class="step">PASO {number}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="step-badge">PASO {number}</div>', unsafe_allow_html=True)
             st.subheader(title)
             st.write(detail)
             if st.button("Abrir " + target.lower(), key=f"start_{number}"):
@@ -475,7 +962,7 @@ elif page in ("Resultados", "Auditoría"):
                     st.caption("Carga expresada en horas de reloj. El receso no suma tiempo de clase.")
                     loads = pd.DataFrame(teacher_load(bundle, plan))
                     st.dataframe(loads, hide_index=True, width="stretch")
-                    st.bar_chart(loads, x="Docente", y=["Horas asignadas", "Horas libres"], color=["#167C80", "#CBD7E4"])
+                    st.bar_chart(loads, x="Docente", y=["Horas asignadas", "Horas libres"], color=["#0F766E", "#CBD5E1"])
                 with checks_tab:
                     checks = ["Cada alumno tiene exactamente una asignación", "Nivel compatible con su grupo de inglés", "Siete periodos completos en cada bloque", "Ninguna clase invade el receso",
                               "Cupos de grupo y salón respetados", "Docentes y salones sin superposición", "Disponibilidad y carga docente respetadas",
