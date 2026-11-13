@@ -19,460 +19,249 @@ from ingles.reports import export_pdf
 from ingles.scheduler import resource_summary, solve
 from ingles.storage import Store, ConcurrentEdit
 
-st.set_page_config(page_title="Inglés · Planeación académica", page_icon="📚", layout="wide")
+st.set_page_config(page_title="Inglés · Planeación académica", page_icon=":material/school:", layout="wide")
 ROOT = Path(__file__).resolve().parent
 store = Store(os.environ.get("INGLES_DB_PATH", str(ROOT / "data" / "ingles.sqlite3")))
 bundle, revision = store.load()
 PAGES = ["Vista general", "Datos", "Bloques y reglas", "Generar", "Resultados", "Auditoría"]
+PAGE_ICONS = {"Vista general": "home", "Datos": "database", "Bloques y reglas": "tune", "Generar": "bolt", "Resultados": "calendar_month", "Auditoría": "fact_check"}
+
+# Paleta del calendario: un color suave por grupo de inglés
+CAL_COLORS = [("#E6ECFC", "#34408A"), ("#E3F4EC", "#2D6A55"), ("#FCEBE0", "#8A4B2B"), ("#EFEBFA", "#5B4A9A"),
+              ("#FAE6EC", "#8A3F5B"), ("#E3F2F6", "#2F6477"), ("#F5F2DC", "#6B6224"), ("#EDEEF2", "#454B5E")]
 
 st.markdown("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap');
 
-/* Base typography */
-html, body, [class*="css"], .stMarkdown, p, span, label, input, button {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+:root {
+    --ink: #14213D;
+    --ink-2: #3B4A66;
+    --muted: #5B6678;
+    --paper: #F4F6FA;
+    --card: #FFFFFF;
+    --line: #E1E6EF;
+    --blue: #2F5BEA;
+    --blue-dark: #2347C2;
+    --blue-soft: #E8EEFF;
+    --amber: #FFB703;
+    --amber-soft: #FFF4D6;
+    --green: #12805C;
+    --green-soft: #DDF5EA;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(20, 33, 61, .05), 0 6px 18px -8px rgba(20, 33, 61, .10);
 }
 
-/* Page Layout */
-.block-container {
-    padding-top: 1.8rem !important;
-    padding-bottom: 4rem !important;
-    max-width: 1440px !important;
+/* ---------- Tipografía (sin tocar los iconos de Streamlit) ---------- */
+html, body, .stApp, .stMarkdown, [data-testid="stMarkdownContainer"] p, label, input, textarea, button, li,
+[data-testid="stCaptionContainer"], [data-testid="stMetricLabel"], [data-baseweb="tab"] {
+    font-family: 'Instrument Sans', -apple-system, 'Segoe UI', Roboto, sans-serif !important;
 }
-
-/* Headings */
-h1 {
-    font-weight: 800 !important;
-    letter-spacing: -0.04em !important;
-    color: #0F172A !important;
-    font-size: 2.15rem !important;
-    margin-bottom: 0.35rem !important;
+h1, h2, h3, .hero h2, .page-head h1, .sb-name {
+    font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif !important;
+    color: var(--ink) !important;
+    letter-spacing: -0.02em !important;
 }
+h1 { font-weight: 800 !important; font-size: 2.2rem !important; }
+h2 { font-weight: 700 !important; font-size: 1.5rem !important; }
+h3 { font-weight: 700 !important; font-size: 1.15rem !important; }
 
-h2 {
-    font-weight: 700 !important;
-    letter-spacing: -0.03em !important;
-    color: #1E293B !important;
-    font-size: 1.55rem !important;
+/* ---------- Lienzo ---------- */
+.stApp { background: var(--paper); }
+[data-testid="stHeader"] { background: transparent; }
+footer, #MainMenu { visibility: hidden; }
+.block-container { padding-top: 1.6rem !important; padding-bottom: 4rem !important; max-width: 1360px !important; }
+hr { border-color: var(--line) !important; margin: 2.2rem 0 1rem !important; }
+[data-testid="stCaptionContainer"] { color: var(--muted) !important; line-height: 1.5; }
+
+/* ---------- Barra superior ---------- */
+.topbar {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 18px; margin-bottom: 22px; box-shadow: var(--shadow);
 }
-
-h3 {
-    font-weight: 700 !important;
-    letter-spacing: -0.025em !important;
-    color: #334155 !important;
-    font-size: 1.22rem !important;
+.topbar-left { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-weight: 600; font-size: .92rem; }
+.topbar-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--ink); display: grid; place-items: center; font-size: 15px; }
+.topbar-sep { color: var(--line); }
+.topbar-page { color: var(--ink); font-weight: 700; }
+.pill {
+    display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px;
+    background: var(--green-soft); color: var(--green); font-weight: 600; font-size: .8rem;
 }
+.pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; }
 
-/* Header bar */
-.top-header-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 14px;
-    padding: 12px 20px;
-    margin-bottom: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+/* ---------- Encabezado de página ---------- */
+.page-head { display: flex; align-items: center; gap: 16px; margin: 4px 0 22px; }
+.page-head-icon {
+    width: 52px; height: 52px; flex: none; border-radius: 14px; background: var(--blue-soft);
+    display: grid; place-items: center; font-size: 26px;
 }
+.page-head h1 { margin: 0 !important; padding: 0 !important; line-height: 1.1 !important; }
+.page-head p { margin: 4px 0 0 !important; color: var(--muted); font-size: 1rem; max-width: 760px; }
 
-.top-brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
+/* ---------- Hero con mini horario ---------- */
+.hero {
+    display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; align-items: center;
+    background: var(--ink); border-radius: 22px; padding: 38px 44px; margin: 4px 0 26px; color: #fff;
+    box-shadow: 0 20px 40px -22px rgba(20, 33, 61, .55);
 }
-
-.top-brand-icon {
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(135deg, #0F766E, #0D9488);
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: white;
-    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.2);
+.hero h2 { color: #fff !important; font-size: 2.35rem !important; line-height: 1.08 !important; margin: 0 0 12px !important; }
+.hero p { color: #C9D3E6 !important; font-size: 1.04rem; line-height: 1.6; margin: 0 0 18px !important; max-width: 520px; }
+.hero-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.hero-tags span {
+    background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.16); color: #E5ECFA;
+    padding: 5px 12px; border-radius: 999px; font-size: .82rem; font-weight: 500;
 }
+.mini-week { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 16px; }
+.mini-days, .mini-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.mini-days { margin-bottom: 8px; }
+.mini-days b { text-align: center; font-size: .72rem; font-weight: 600; color: #9FB0CF; }
+.mini-grid span { height: 26px; border-radius: 7px; background: rgba(255,255,255,.07); }
+.mini-grid .c0 { background: #7FA2FF; } .mini-grid .c1 { background: #5FD3A6; } .mini-grid .c2 { background: #FFB76B; }
+.mini-grid .c3 { background: #C3A6F5; } .mini-grid .brk { background: var(--amber); opacity: .85; grid-column: 1 / -1; height: 14px; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding: 28px; } }
 
-.top-brand-text {
-    font-size: 0.82rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    color: #0F766E;
-    text-transform: uppercase;
-}
-
-.status-badge-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    background: #F0FDF4;
-    border: 1px solid #BBF7D0;
-    border-radius: 9999px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    color: #166534;
-}
-
-.status-pulse {
-    width: 8px;
-    height: 8px;
-    background: #22C55E;
-    border-radius: 50%;
-    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
-}
-
-/* Hero Section */
-.hero-card {
-    position: relative;
-    background: linear-gradient(135deg, #0F172A 0%, #1E293B 55%, #0F766E 100%);
-    border-radius: 20px;
-    padding: 36px 42px;
-    margin: 8px 0 26px;
-    color: #FFFFFF;
-    box-shadow: 0 14px 34px -10px rgba(15, 23, 42, 0.3);
-    overflow: hidden;
-}
-
-.hero-card::after {
-    content: '';
-    position: absolute;
-    top: -60px;
-    right: -60px;
-    width: 240px;
-    height: 240px;
-    background: radial-gradient(circle, rgba(20, 184, 166, 0.25) 0%, rgba(20, 184, 166, 0) 70%);
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.hero-tag {
-    display: inline-block;
-    padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 9999px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: #99F6E4;
-    text-transform: uppercase;
-    margin-bottom: 12px;
-    backdrop-filter: blur(8px);
-}
-
-.hero-card h2 {
-    color: #FFFFFF !important;
-    font-size: 2.15rem !important;
-    font-weight: 800 !important;
-    margin: 0 0 10px 0 !important;
-    letter-spacing: -0.04em !important;
-}
-
-.hero-card p {
-    color: #E2E8F0 !important;
-    font-size: 1.02rem !important;
-    line-height: 1.55 !important;
-    margin: 0 !important;
-    max-width: 820px !important;
-}
-
-/* Metric Cards */
+/* ---------- Métricas ---------- */
 [data-testid="stMetric"] {
-    background: #FFFFFF !important;
-    border: 1px solid #E2E8F0 !important;
-    border-radius: 16px !important;
-    padding: 20px 22px !important;
-    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.04), 0 1px 3px -1px rgba(0, 0, 0, 0.02) !important;
-    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    position: relative !important;
-    overflow: hidden !important;
+    background: var(--card) !important; border: 1px solid var(--line) !important; border-radius: var(--radius) !important;
+    padding: 18px 20px !important; box-shadow: var(--shadow) !important; border-left: 4px solid var(--blue) !important;
 }
-
-[data-testid="stMetric"]:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 10px 22px -4px rgba(15, 23, 42, 0.08) !important;
-    border-color: #CBD5E1 !important;
-}
-
-[data-testid="stMetric"]::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #0F766E, #14B8A6);
-}
-
-[data-testid="stMetricLabel"] {
-    font-size: 0.78rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.06em !important;
-    color: #64748B !important;
-    text-transform: uppercase !important;
-}
-
+[data-testid="stMetricLabel"] { color: var(--muted) !important; font-weight: 600 !important; font-size: .88rem !important; }
 [data-testid="stMetricValue"] {
-    font-size: 1.95rem !important;
-    font-weight: 800 !important;
-    color: #0F172A !important;
-    letter-spacing: -0.04em !important;
-    margin-top: 4px !important;
+    font-family: 'Bricolage Grotesque', sans-serif !important; color: var(--ink) !important;
+    font-weight: 800 !important; font-size: 2.1rem !important; letter-spacing: -0.03em !important;
 }
 
-/* Step badges */
-.step-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 10px;
-    background: #F0FDFA;
-    color: #0F766E;
-    border: 1px solid #CCFBF1;
-    border-radius: 8px;
-    font-size: 0.74rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    margin-bottom: 10px;
+/* ---------- Tarjetas con borde (contenedores) ---------- */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background: var(--card); border-color: var(--line) !important; border-radius: var(--radius) !important; box-shadow: var(--shadow);
+}
+.step-num {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center;
+    font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: .95rem; margin-bottom: 8px;
 }
 
-/* Sidebar Custom Styling */
-[data-testid="stSidebar"] {
-    background: #F8FAFC !important;
-    border-right: 1px solid #E2E8F0 !important;
-}
+/* ---------- Reglas de la planeación ---------- */
+.rules-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 10px; }
+.rule-chip { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; }
+.rule-chip small { display: block; color: var(--muted); font-size: .78rem; font-weight: 500; }
+.rule-chip b { color: var(--ink); font-size: .98rem; }
 
-.sidebar-header-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 4px 18px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid #E2E8F0;
-}
-
-.sidebar-icon-box {
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, #0F766E 0%, #0369A1 100%);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    color: white;
-    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
-}
-
-.sidebar-app-name {
-    font-size: 1.08rem;
-    font-weight: 800;
-    color: #0F172A;
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-}
-
-.sidebar-app-sub {
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: #0F766E;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-top: 3px;
-}
-
-.sidebar-info-card {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-top: 14px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-}
-
-.sidebar-info-title {
-    font-size: 0.72rem;
-    font-weight: 800;
-    color: #475569;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.sidebar-info-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #F1F5F9;
-    font-size: 0.78rem;
-    color: #475569;
-}
-
-.sidebar-info-row:last-child {
-    border-bottom: none;
-}
-
-.sidebar-info-row strong {
-    color: #0F172A;
-    font-weight: 600;
-}
-
-/* Sidebar Radio Navigation */
+/* ---------- Barra lateral ---------- */
+[data-testid="stSidebar"] { background: var(--ink) !important; border-right: none !important; }
+[data-testid="stSidebar"] * { color: #D6DEEE; }
+.sb-head { display: flex; align-items: center; gap: 12px; padding: 6px 2px 18px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sb-logo { width: 42px; height: 42px; border-radius: 12px; background: var(--amber); display: grid; place-items: center; font-size: 21px; }
+.sb-name { color: #fff !important; font-size: 1.12rem; font-weight: 800; line-height: 1.15; }
+.sb-sub { color: #9FB0CF !important; font-size: .82rem; margin-top: 2px; }
 [data-testid="stSidebar"] [data-testid="stRadio"] label {
-    padding: 9px 14px;
-    border-radius: 10px;
-    background: transparent;
-    border: 1px solid transparent;
-    margin: 2px 0;
-    font-size: 0.88rem;
-    font-weight: 500;
-    color: #334155;
-    transition: all 0.15s ease;
-    cursor: pointer;
+    padding: 9px 14px; border-radius: 10px; margin: 2px 0; width: 100%; transition: background .15s ease; cursor: pointer;
 }
+[data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child { display: none; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label p { color: #C3CEE3 !important; font-weight: 500; font-size: .95rem; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background: rgba(255,255,255,.07); }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) { background: var(--blue); }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p { color: #fff !important; font-weight: 700; }
+.sb-card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 14px 16px; margin-top: 18px; }
+.sb-card-title { display: flex; justify-content: space-between; color: #fff !important; font-weight: 700; font-size: .9rem; margin-bottom: 8px; }
+.sb-card-title em { color: #5FD3A6 !important; font-style: normal; font-weight: 600; font-size: .8rem; }
+.sb-row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); font-size: .82rem; }
+.sb-row:last-child { border-bottom: none; }
+.sb-row span { color: #9FB0CF !important; }
+.sb-row strong { color: #fff !important; font-weight: 600; text-align: right; }
 
-[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-    background: #FFFFFF;
-    border-color: #E2E8F0;
-    color: #0F172A;
+/* ---------- Botones ---------- */
+div.stButton > button, div.stDownloadButton > button, [data-testid="stFormSubmitButton"] > button {
+    border-radius: 10px !important; font-weight: 600 !important; padding: .5rem 1.15rem !important;
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease !important;
 }
-
-/* Buttons */
-div.stButton > button {
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-    font-size: 0.88rem !important;
-    padding: 0.48rem 1.15rem !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    letter-spacing: -0.01em !important;
+div.stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] {
+    background: var(--blue) !important; border: 1px solid var(--blue) !important; color: #fff !important;
+    box-shadow: 0 6px 14px -6px rgba(47, 91, 234, .6) !important;
 }
-
-div.stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%) !important;
-    border: none !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25) !important;
+div.stButton > button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover { background: var(--blue-dark) !important; border-color: var(--blue-dark) !important; }
+div.stButton > button[kind="secondary"], div.stDownloadButton > button {
+    background: var(--card) !important; border: 1px solid #CBD3E1 !important; color: var(--ink) !important;
 }
-
-div.stButton > button[kind="primary"]:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 6px 18px rgba(15, 118, 110, 0.35) !important;
+div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button:hover {
+    border-color: var(--blue) !important; color: var(--blue) !important; background: var(--blue-soft) !important;
 }
+button:focus-visible, [data-baseweb="tab"]:focus-visible { outline: 3px solid rgba(47, 91, 234, .35) !important; outline-offset: 2px; }
 
-div.stButton > button[kind="secondary"], div.stButton > button:not([kind="primary"]) {
-    background: #FFFFFF !important;
-    border: 1px solid #CBD5E1 !important;
-    color: #334155 !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-}
-
-div.stButton > button[kind="secondary"]:hover, div.stButton > button:not([kind="primary"]):hover {
-    background: #F8FAFC !important;
-    border-color: #94A3B8 !important;
-    color: #0F172A !important;
-    transform: translateY(-1px) !important;
-}
-
-div.stDownloadButton > button {
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-    font-size: 0.88rem !important;
-    padding: 0.48rem 1.15rem !important;
-    border: 1px solid #CBD5E1 !important;
-    background: #FFFFFF !important;
-    color: #0F766E !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-    transition: all 0.2s ease !important;
-}
-
-div.stDownloadButton > button:hover {
-    background: #F0FDFA !important;
-    border-color: #0F766E !important;
-    transform: translateY(-1px) !important;
-}
-
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    background-color: #F1F5F9;
-    padding: 5px;
-    border-radius: 12px;
-    border: 1px solid #E2E8F0;
-    margin-bottom: 22px;
-}
-
+/* ---------- Pestañas ---------- */
+.stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; background: transparent; padding: 0; }
 .stTabs [data-baseweb="tab"] {
-    height: 38px;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.86rem;
-    color: #64748B;
-    border: none !important;
-    background-color: transparent;
-    padding: 0 16px;
-    transition: all 0.15s ease;
+    height: 44px; padding: 0 16px; border-radius: 10px 10px 0 0; color: var(--muted); font-weight: 600; background: transparent;
 }
+.stTabs [data-baseweb="tab"]:hover { color: var(--ink); background: rgba(47, 91, 234, .06); }
+.stTabs [aria-selected="true"] { color: var(--blue) !important; font-weight: 700 !important; }
+.stTabs [data-baseweb="tab-highlight"] { background-color: var(--blue) !important; height: 3px !important; }
+.stTabs [data-baseweb="tab-border"] { display: none; }
 
-.stTabs [data-baseweb="tab"]:hover {
-    color: #0F172A;
-    background-color: rgba(255, 255, 255, 0.6);
-}
+/* ---------- Formularios, tablas, expanders ---------- */
+[data-testid="stForm"] { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+[data-testid="stExpander"] { background: var(--card); border: 1px solid var(--line) !important; border-radius: 12px !important; box-shadow: var(--shadow); }
+[data-testid="stExpander"] summary { font-weight: 600; color: var(--ink); }
+[data-baseweb="select"] > div, [data-baseweb="input"], [data-baseweb="base-input"] { border-radius: 10px !important; }
+[data-testid="stFileUploaderDropzone"] { border: 1.5px dashed #B7C3DB; border-radius: 12px; background: #F8FAFE; }
 
-.stTabs [aria-selected="true"] {
-    background-color: #FFFFFF !important;
-    color: #0F766E !important;
-    font-weight: 700 !important;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
-}
+/* ---------- Avisos ---------- */
+[data-testid="stAlert"] { border-radius: 12px !important; font-size: .94rem !important; }
+</style>""", unsafe_allow_html=True)
 
-/* Form styling */
-[data-testid="stForm"] {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.03);
-}
-
-/* Dataframe containers */
-[data-testid="stDataFrame"] {
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid #E2E8F0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-}
-
-/* Expanders */
-[data-testid="stExpander"] {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-    margin: 12px 0;
-}
-
-[data-testid="stExpander"] details summary {
-    font-weight: 600;
-    color: #0F172A;
-    border-radius: 12px;
-}
-
-/* Alerts */
-[data-testid="stAlert"] {
-    border-radius: 12px !important;
-    border: 1px solid transparent !important;
-    padding: 14px 18px !important;
-    font-weight: 500 !important;
-    font-size: 0.9rem !important;
-}
+st.markdown("""<style>
+:root { --ink:#2B2F42; --ink-2:#565C75; --muted:#7A8096; --paper:#F8F8FB; --line:#ECEDF3; --blue:#5F67C4; --blue-dark:#4C54AE; --blue-soft:#ECEEFB;
+        --amber-soft:#FDF5DD; --green:#3E8E74; --green-soft:#E3F4EC; --lav:#EFEBFA; --radius:16px; --shadow:0 1px 2px rgba(43,47,66,.04); }
+.stApp { background: var(--paper); }
+h1 { font-size: 2.2rem !important; font-weight: 700 !important; }
+.topbar { border-radius: 14px; padding: 10px 16px; box-shadow: none; }
+.topbar-mark { background: var(--lav); }
+.pill { background: var(--green-soft); box-shadow: none; }
+.page-head-icon { width: 52px; height: 52px; border-radius: 16px; background: var(--lav); box-shadow: none; font-size: 24px; }
+.page-head h1 { font-size: 2.2rem !important; }
+.hero { background: linear-gradient(135deg,#EFEBFA 0%,#E5F0FA 55%,#E3F4EC 100%); animation: none; border: 1px solid #E6E8F2; box-shadow: none; padding: 44px 48px; border-radius: 24px; }
+.hero h2 { color: var(--ink) !important; font-size: 2.5rem !important; line-height: 1.1 !important; letter-spacing: -0.03em !important; }
+.hero p { color: var(--ink-2) !important; font-size: 1.05rem; }
+.hero-tags span { background: rgba(255,255,255,.75); border: 1px solid #E1E4F0; color: var(--ink-2); font-weight: 500; }
+.mini-week { background: rgba(255,255,255,.7); border: 1px solid #E6E8F2; transform: none; backdrop-filter: none; box-shadow: none; }
+.mini-days b { color: var(--muted); }
+.mini-grid span { background: #F0F1F6; height: 28px; }
+.mini-grid .c0 { background: #CFD6F5; } .mini-grid .c1 { background: #CDEBDD; } .mini-grid .c2 { background: #FADDC4; } .mini-grid .c3 { background: #E0D4F5; }
+.mini-grid .brk { background: #F5E3B0; opacity: 1; }
+[data-testid="stMetric"] { border: 1px solid var(--line) !important; border-image: none !important; border-radius: var(--radius) !important; padding: 20px 22px !important; box-shadow: none !important; transform: none !important; }
+[data-testid="stMetricValue"] { font-size: 2.3rem !important; font-weight: 700 !important; }
+[data-testid="stVerticalBlockBorderWrapper"] { box-shadow: none; }
+[data-testid="stVerticalBlockBorderWrapper"]:hover { border-color: #D9DCEE !important; box-shadow: none; }
+.step-num { width: 34px; height: 34px; background: var(--lav); color: var(--blue); box-shadow: none; }
+.rule-chip { border-left: 1px solid var(--line); border-radius: 12px; }
+[data-testid="stSidebar"] { background: #F1F0F8 !important; border-right: 1px solid #E6E7F0 !important; }
+[data-testid="stSidebar"] * { color: var(--ink-2); }
+.sb-head { border-bottom: 1px solid #E2E3EE; }
+.sb-logo { background: #fff; box-shadow: none; border: 1px solid #E2E3EE; }
+.sb-name { color: var(--ink) !important; }
+.sb-sub { color: var(--muted) !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label p { color: var(--ink-2) !important; font-weight: 500; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background: rgba(95,103,196,.08); }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) { background: #fff; box-shadow: 0 1px 3px rgba(43,47,66,.08); }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p { color: var(--blue-dark) !important; font-weight: 600; }
+.sb-card { background: #fff; border: 1px solid #E6E7F0; }
+.sb-card-title { color: var(--ink) !important; }
+.sb-card-title em { color: var(--green) !important; }
+.sb-row { border-bottom: 1px solid #F0F1F6; }
+.sb-row span { color: var(--muted) !important; }
+.sb-row strong { color: var(--ink) !important; }
+div.stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] { background: var(--blue) !important; border: none !important; box-shadow: none !important; }
+div.stButton > button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover { background: var(--blue-dark) !important; filter: none; transform: none; }
+div.stButton > button[kind="secondary"], div.stDownloadButton > button { border: 1px solid #DDE0EC !important; }
+.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid var(--line); gap: 4px; }
+.stTabs [data-baseweb="tab"] { background: transparent; border: none; border-radius: 10px; height: 40px; }
+.stTabs [aria-selected="true"] { background: var(--lav) !important; color: var(--blue-dark) !important; border: none; }
+[data-testid="stForm"], [data-testid="stDataFrame"], [data-testid="stDataEditor"], [data-testid="stExpander"] { box-shadow: none; }
+[data-testid="stFileUploaderDropzone"] { background: #FBFBFD; border-color: #D9DCEA; }
+.ico { stroke: var(--blue-dark); width: 24px; height: 24px; }
+.topbar-mark .ico { width: 17px; height: 17px; }
+.sb-logo .ico { width: 22px; height: 22px; }
+.page-head-icon .ico { width: 26px; height: 26px; }
 </style>""", unsafe_allow_html=True)
 
 
@@ -485,6 +274,14 @@ def go(page, tab=None):
 
 def flash(message):
     st.session_state["flash"] = message
+
+
+ICONS = {'book': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg>', 'database': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>', 'sliders': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h8M20 6h-2M4 12h2M20 12h-8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></svg>', 'bolt': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>', 'calendar': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>', 'check': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8.5 11l2 2 3.5-4"/></svg>'}
+
+
+def page_head(icon, title, subtitle):
+    st.markdown(f'<div class="page-head"><div class="page-head-icon">{ICONS[icon]}</div>'
+                f'<div><h1>{title}</h1><p>{subtitle}</p></div></div>', unsafe_allow_html=True)
 
 
 def show_errors(errors):
@@ -605,6 +402,16 @@ def choose_plan():
     return store.get_plan(pid)
 
 
+def cell_style(value):
+    if value == "Receso · sin clases":
+        return "background-color:#FFF4D6;color:#8A5A00;font-weight:600;font-style:italic"
+    if not value:
+        return "color:#B6BFCE"
+    group = value.split(" · ")[0]
+    bg, fg = CAL_COLORS[int(hashlib.md5(group.encode()).hexdigest(), 16) % len(CAL_COLORS)]
+    return f"background-color:{bg};color:{fg};font-weight:600"
+
+
 def draw_calendar(rows, settings):
     grid = []
     for entry in daily_agenda(settings):
@@ -616,7 +423,7 @@ def draw_calendar(rows, settings):
             row[day] = "Receso · sin clases" if pause else "\n".join(f"{r['Grupo Inglés']} · E{r['Edificio']}/{r['Salón']}" for r in rows if r["Día"] == day and r["Periodo"] == i)
         grid.append(row)
     table = pd.DataFrame(grid).set_index("Hora")
-    styled = table.style.map(lambda v: "background-color:#FEF3C7;color:#92400E;font-weight:600" if v == "Receso · sin clases" else ("background-color:#CCFBF1;color:#0F766E;font-weight:700" if v else "color:#94A3B8"))
+    styled = table.style.map(cell_style)
     lines = max((row[day].count("\n") + 1 for row in grid for day in DAYS), default=1)
     st.dataframe(styled, width="stretch", row_height=max(65, 21 * lines + 20))
 
@@ -628,87 +435,79 @@ if "next_tab" in st.session_state:
     st.session_state[key] = label
 with st.sidebar:
     st.markdown("""
-    <div class="sidebar-header-card">
-        <div class="sidebar-icon-box">📚</div>
+    <div class="sb-head">
+        <div class="sb-logo"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
         <div>
-            <div class="sidebar-app-name">Coordinación</div>
-            <div class="sidebar-app-sub">Planeación de Inglés</div>
+            <div class="sb-name">Coordinación</div>
+            <div class="sb-sub">Planeación de Inglés</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    page = st.radio("Navegación", PAGES, key="nav", label_visibility="collapsed")
+    page = st.radio("Navegación", PAGES, key="nav", label_visibility="collapsed", format_func=lambda p: f":material/{PAGE_ICONS[p]}:  {p}")
     st.markdown(f"""
-    <div class="sidebar-info-card">
-        <div class="sidebar-info-title">
-            <span>Estado del Sistema</span>
-            <span style="color:#0F766E;">● Activo</span>
-        </div>
-        <div class="sidebar-info-row">
-            <span>Versión de datos:</span>
-            <strong>v{revision}</strong>
-        </div>
-        <div class="sidebar-info-row">
-            <span>Bloque semanal:</span>
-            <strong>7 periodos ({bundle['settings']['period_minutes']} min)</strong>
-        </div>
-        <div class="sidebar-info-row">
-            <span>Receso:</span>
-            <strong>{bundle['settings']['break_start']} – {bundle['settings']['break_end']}</strong>
-        </div>
-        <div class="sidebar-info-row">
-            <span>Jornada:</span>
-            <strong>{bundle['settings']['start_time']} – {bundle['settings']['end_time']}</strong>
-        </div>
-        <div class="sidebar-info-row">
-            <span>Espacios:</span>
-            <strong>Edif. 1-4 e Idiomas</strong>
-        </div>
-        <div class="sidebar-info-row">
-            <span>Base de datos:</span>
-            <strong>SQLite Local</strong>
-        </div>
+    <div class="sb-card">
+        <div class="sb-card-title"><span>Estado del sistema</span><em>● Activo</em></div>
+        <div class="sb-row"><span>Versión de datos</span><strong>v{revision}</strong></div>
+        <div class="sb-row"><span>Bloque semanal</span><strong>7 periodos ({bundle['settings']['period_minutes']} min)</strong></div>
+        <div class="sb-row"><span>Receso</span><strong>{bundle['settings']['break_start']} – {bundle['settings']['break_end']}</strong></div>
+        <div class="sb-row"><span>Jornada</span><strong>{bundle['settings']['start_time']} – {bundle['settings']['end_time']}</strong></div>
+        <div class="sb-row"><span>Espacios</span><strong>Edif. 1-4 e Idiomas</strong></div>
+        <div class="sb-row"><span>Base de datos</span><strong>SQLite local</strong></div>
     </div>
     """, unsafe_allow_html=True)
 
 if "flash" in st.session_state:
-    st.toast(st.session_state.pop("flash"), icon="✅", duration=4)
+    st.toast(st.session_state.pop("flash"), icon=":material/check_circle:", duration=4)
 
 st.markdown(f"""
-<div class="top-header-bar">
-    <div class="top-brand">
-        <div class="top-brand-icon">📚</div>
-        <span class="top-brand-text">Coordinación de Inglés · Horarios y Grupos</span>
+<div class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-mark"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
+        <span>Coordinación de Inglés</span><span class="topbar-sep">/</span><span class="topbar-page">{page}</span>
     </div>
-    <div class="status-badge-live">
-        <div class="status-pulse"></div>
-        <span>Datos v{revision} · Base activa</span>
-    </div>
+    <div class="pill"><i></i>Datos v{revision} · Base activa</div>
 </div>
 """, unsafe_allow_html=True)
 
 if page == "Vista general":
-    st.markdown("""
-    <div class="hero-card">
-        <div class="hero-tag">✨ Sistema Inteligente de Horarios</div>
-        <h2>Un lugar para organizar cada grupo.</h2>
-        <p>Reúne alumnos, docentes y espacios. Genera una propuesta de horarios y revisa cada asignación antes de compartirla.</p>
+    mini_cells = "".join(f'<span class="{c}"></span>' for c in
+                         ["c0", "c1", "", "c2", "c3", "c1", "", "c0", "", "c2", "brk", "c3", "c0", "c1", "", "", "c2", "c3", "c0", "c1"][:10]) \
+        + '<span class="brk"></span>' \
+        + "".join(f'<span class="{c}"></span>' for c in ["c2", "", "c0", "c3", "c1", "c1", "c2", "", "c0", "c3"])
+    st.markdown(f"""
+    <div class="hero">
+        <div>
+            <h2>Un lugar para organizar cada grupo de inglés.</h2>
+            <p>Reúne alumnos, docentes y espacios. Genera una propuesta de horarios y revisa cada asignación antes de compartirla.</p>
+            <div class="hero-tags"><span>Grupos por nivel</span><span>Horario común por carrera</span><span>Auditoría automática</span></div>
+        </div>
+        <div class="mini-week">
+            <div class="mini-days"><b>Lun</b><b>Mar</b><b>Mié</b><b>Jue</b><b>Vie</b></div>
+            <div class="mini-grid">{mini_cells}</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     cols = st.columns(4)
     for col, kind, name in zip(cols, ["students", "teachers", "rooms", "blocks"], ["Alumnos", "Docentes", "Salones", "Bloques"]):
         col.metric(name, len(bundle[kind]))
     st.write("")
-    for col, number, title, detail, target in zip(st.columns(3), ["01", "02", "03"], ["Reúne la información", "Define la semana", "Revisa el resultado"],
+    for col, number, title, detail, target in zip(st.columns(3), ["1", "2", "3"], ["Reúne la información", "Define la semana", "Revisa el resultado"],
         ["Carga los Excel y corrige los registros antes de guardarlos.", "Configura bloques, cupos y disponibilidad de los espacios.", "Comprueba grupos, carga docente y conflictos; exporta los resultados."], ["Datos", "Bloques y reglas", "Generar"]):
         with col.container(border=True):
-            st.markdown(f'<div class="step-badge">PASO {number}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="step-num">{number}</div>', unsafe_allow_html=True)
             st.subheader(title)
             st.write(detail)
             if st.button("Abrir " + target.lower(), key=f"start_{number}"):
                 go(target)
     st.subheader("Reglas de esta planeación")
     names = {"family": "Familias A, B y C", "cefr": "Niveles A1, A2, B1, B2 y C1", "course": "Curso exacto"}
-    st.write(f"**Agrupación:** {names[bundle['settings']['grouping']]} · **Cupo máximo:** {bundle['settings']['max_group']} alumnos · **Horario común:** obligatorio para cada grupo de carrera.")
+    st.markdown(f"""
+    <div class="rules-row">
+        <div class="rule-chip"><small>Agrupación</small><b>{names[bundle['settings']['grouping']]}</b></div>
+        <div class="rule-chip"><small>Cupo máximo</small><b>{bundle['settings']['max_group']} alumnos</b></div>
+        <div class="rule-chip"><small>Horario común</small><b>Obligatorio por grupo de carrera</b></div>
+    </div>
+    """, unsafe_allow_html=True)
     st.caption("A1: Prebasic / Basic 1 · A2: Basic 2 / Basic 3 · B1: Intermediate 1 / 2 · B2: Intermediate 3 / 4 · C1: Advanced 1")
     if revision == 0:
         with st.container(border=True):
@@ -719,14 +518,13 @@ if page == "Vista general":
                     go("Datos")
 
 elif page == "Datos":
-    st.title("Datos de la planeación")
-    st.write("Carga, revisa y guarda la información que se usará para formar los grupos.")
+    page_head("database", "Datos de la planeación", "Carga, revisa y guarda la información que se usará para formar los grupos.")
     for tab, kind, label in zip(st.tabs(["Alumnos", "Docentes", "Salones"], key="data_tabs", on_change="rerun"), ["students", "teachers", "rooms"], ["Alumnos", "Docentes", "Salones"]):
         with tab:
             table_editor(kind, label)
 
 elif page == "Bloques y reglas":
-    st.title("La semana de inglés")
+    page_head("sliders", "La semana de inglés", "Define cómo se agrupan los alumnos, la jornada y los bloques semanales disponibles.")
     rules, blocks_tab = st.tabs(["Reglas de asignación", "Bloques semanales"], key="rule_tabs", on_change="rerun")
     with rules:
         s = bundle["settings"]
@@ -778,8 +576,7 @@ elif page == "Bloques y reglas":
         table_editor("blocks", "Bloques")
 
 elif page == "Generar":
-    st.title("Generar grupos y horarios")
-    st.write("El sistema buscará una asignación para todos los alumnos y comprobará las restricciones antes de guardarla.")
+    page_head("bolt", "Generar grupos y horarios", "El sistema buscará una asignación para todos los alumnos y comprobará las restricciones antes de guardarla.")
     errors = validate_bundle(bundle)
     if errors:
         show_errors(errors)
@@ -833,7 +630,10 @@ elif page == "Generar":
                     go(target, tab)
 
 elif page in ("Resultados", "Auditoría"):
-    st.title("Grupos y horarios" if page == "Resultados" else "Auditoría de la planeación")
+    if page == "Resultados":
+        page_head("calendar", "Grupos y horarios", "Consulta los grupos formados, ajusta asignaciones y exporta los archivos finales.")
+    else:
+        page_head("check", "Auditoría de la planeación", "Verifica horarios, carga docente y cada regla antes de compartir la propuesta.")
     selected = choose_plan()
     if selected:
         plan = selected["payload"]
@@ -852,6 +652,7 @@ elif page in ("Resultados", "Auditoría"):
         b.metric("Grupos de inglés", len(plan["groups"]))
         c.metric("Errores", len(errors))
         d.metric("Avisos", len(issues) - len(errors))
+        st.write("")
 
         if page == "Resultados":
             overview, manual, exports = st.tabs(["Por grupo de inglés", "Ajustes manuales", "Exportar"], key="result_tabs", on_change="rerun")
@@ -962,7 +763,7 @@ elif page in ("Resultados", "Auditoría"):
                     st.caption("Carga expresada en horas de reloj. El receso no suma tiempo de clase.")
                     loads = pd.DataFrame(teacher_load(bundle, plan))
                     st.dataframe(loads, hide_index=True, width="stretch")
-                    st.bar_chart(loads, x="Docente", y=["Horas asignadas", "Horas libres"], color=["#0F766E", "#CBD5E1"])
+                    st.bar_chart(loads, x="Docente", y=["Horas asignadas", "Horas libres"], color=["#8E94DB", "#E4E6F2"])
                 with checks_tab:
                     checks = ["Cada alumno tiene exactamente una asignación", "Nivel compatible con su grupo de inglés", "Siete periodos completos en cada bloque", "Ninguna clase invade el receso",
                               "Cupos de grupo y salón respetados", "Docentes y salones sin superposición", "Disponibilidad y carga docente respetadas",
