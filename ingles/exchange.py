@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
+import re
 from io import BytesIO
 from zipfile import ZipFile, BadZipFile
 
@@ -9,7 +10,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from ingles.audit import audit, errors_only
-from ingles.domain import DAYS, SCHEMAS, canonical_rows, cefr, clean, norm, periods
+from ingles.domain import (DAYS, SCHEMAS, block_minutes, canonical_rows, cefr, clean,
+                           daily_agenda, norm, period_count, period_label, periods, public_columns, time_label)
 
 HEADERS = ["Matricula", "Nombre", "Grupo", "Nombre de materia", "Grupo Inglés", "Nivel de inglés", "Docente", "Salón"]
 ALIASES = {
@@ -18,7 +20,8 @@ ALIASES = {
     "Grupo": ["grupo de carrera", "grupo origen"], "Carrera": ["programa", "licenciatura"],
     "Nivel": ["nivel de inglés", "nivel de ingles", "curso", "nivel ingles"],
     "Horas máximas": ["horas maximas", "horas semanales", "carga máxima", "horas laborables"],
-    "Edificios": ["edificio", "edificios permitidos"], "ID": ["clave", "id docente", "id salon", "id salón", "matricula"],
+    "Edificios": ["edificio", "edificios permitidos"],
+    "matricula_docente": ["matrícula docente", "matricula docente", "matricula", "matrícula", "clave", "id docente", "ID"],
     "Salón": ["salon", "aula"], "Capacidad": ["cupo"],
     "Bloque": ["nombre de materia", "materia", "nombre del bloque"],
 }
@@ -73,17 +76,17 @@ def read_excel(data, sheet):
 
 def suggested_mapping(kind, headers):
     mapping = {}
-    for target in SCHEMAS[kind]:
+    for target in public_columns(kind):
         aliases = {norm(target), *(norm(x) for x in ALIASES.get(target, []))}
         mapping[target] = next((h for h in headers if norm(h) in aliases), "")
     return mapping
 
 
-def map_rows(kind, rows, mapping):
+def map_rows(kind, rows, mapping, existing=()):
     columns = [v for v in mapping.values() if v]
     if len(columns) != len(set(columns)):
         raise ValueError("Una columna del Excel no puede usarse para dos campos distintos.")
-    return canonical_rows(kind, [{target: row.get(mapping.get(target), "") for target in SCHEMAS[kind]} for row in rows])
+    return canonical_rows(kind, [{target: row.get(mapping.get(target), "") for target in public_columns(kind)} for row in rows], existing)
 
 
 def roster(bundle, plan):
@@ -110,14 +113,16 @@ def group_summary(bundle, plan):
     return [{"Grupo Inglés": g["id"], "Nivel agrupado": g["level"], "Bloque": g["block"],
              "Docente": teachers[g["teacher"]]["Nombre"], "Edificio": rooms[g["room"]]["Edificio"],
              "Salón": rooms[g["room"]]["Salón"], "Alumnos": counts[g["id"]],
-             "Cupo": min(int(rooms[g["room"]]["Capacidad"]), bundle["settings"]["max_group"]), "Horas": 7}
+             "Cupo": min(int(rooms[g["room"]]["Capacidad"]), bundle["settings"]["max_group"]),
+             "Horas": round(block_minutes(bundle["settings"]) / 60, 2)}
             for g in plan["groups"]]
 
 
 def teacher_load(bundle, plan):
     counts = Counter(g["teacher"] for g in plan["groups"])
-    return [{"Docente": t["Nombre"], "Grupos": counts[t["ID"]], "Horas asignadas": 7 * counts[t["ID"]],
-             "Horas máximas": int(t["Horas máximas"]), "Horas libres": int(t["Horas máximas"]) - 7 * counts[t["ID"]]}
+    per_group = block_minutes(bundle["settings"])
+    return [{"Docente": t["Nombre"], "Grupos": counts[t["ID"]], "Horas asignadas": round(per_group * counts[t["ID"]] / 60, 2),
+             "Horas máximas": int(t["Horas máximas"]), "Horas libres": round(int(t["Horas máximas"]) - per_group * counts[t["ID"]] / 60, 2)}
             for t in bundle["teachers"]]
 
 
@@ -129,16 +134,19 @@ def reservations(bundle, plan):
     for a in plan["assignments"]:
         student, group = students[a["student"]], groups[a["group"]]
         for day in DAYS:
-            for p in periods(blocks[group["block"]][day], bundle["settings"]["periods_per_day"]):
+            for p in periods(blocks[group["block"]][day], period_count(bundle["settings"])):
                 unique.add((student["Carrera"], student["Grupo"], day, p))
-    return [{"Carrera": c, "Grupo": g, "Día": d, "Periodo reservado": p} for c, g, d, p in sorted(unique, key=lambda x: (x[0], x[1], DAYS.index(x[2]), x[3]))]
+    return [{"Carrera": c, "Grupo": g, "Día": d, "Periodo reservado": p,
+             "Horario": period_label(bundle["settings"], p)}
+            for c, g, d, p in sorted(unique, key=lambda x: (x[0], x[1], DAYS.index(x[2]), x[3]))]
 
 
-def period_label(settings, p):
-    hour, minute = map(int, settings["start_time"].split(":"))
-    start = hour * 60 + minute + (p - 1) * 60
-    end = start + 60
-    return f"{start // 60:02}:{start % 60:02}–{end // 60:02}:{end % 60:02}"
+def day_rows(settings):
+    return [{"Periodo": row["period"] if row["kind"] == "class" else "Receso",
+             "Inicio": time_label(row["start"]), "Fin": time_label(row["end"]),
+             "Duración (min)": row["end"] - row["start"],
+             "Asignable": "Sí" if row["kind"] == "class" else "No"}
+            for row in daily_agenda(settings)]
 
 
 def schedule_rows(bundle, plan):
@@ -147,7 +155,7 @@ def schedule_rows(bundle, plan):
     rows = []
     for g in plan["groups"]:
         for day in DAYS:
-            for p in sorted(periods(blocks[g["block"]][day], bundle["settings"]["periods_per_day"])):
+            for p in sorted(periods(blocks[g["block"]][day], period_count(bundle["settings"]))):
                 rows.append({"Grupo Inglés": g["id"], "Bloque": g["block"], "Día": day, "Periodo": p,
                              "Horario": period_label(bundle["settings"], p), "Docente": summary[g["id"]]["Docente"],
                              "Salón": summary[g["id"]]["Salón"], "Edificio": summary[g["id"]]["Edificio"]})
@@ -211,6 +219,7 @@ def export_excel(bundle, plan):
     listed = roster(bundle, plan)
     tables = [("Listado", HEADERS, listed)]
     for name, rows in [("Grupos", group_summary(bundle, plan)), ("Horarios", schedule_rows(bundle, plan)),
+                       ("Jornada", day_rows(bundle["settings"])),
                        ("Carga docente", teacher_load(bundle, plan)), ("Reservas carrera", reservations(bundle, plan)),
                        ("Auditoría", issues or [{"Severidad": "Correcto", "Regla": "Auditoría", "Detalle": "Sin errores detectados"}])]:
         tables.append((name, list(rows[0]) if rows else [], rows))
@@ -220,4 +229,45 @@ def export_excel(bundle, plan):
 
 
 def template_excel(kind, demo):
-    return workbook_bytes([(kind, SCHEMAS[kind], demo[kind])])
+    return workbook_bytes([(kind, public_columns(kind), demo[kind])])
+
+
+def export_career_excel(bundle, plan):
+    """Printable lists by Carrera + Grupo, retaining each student's English level."""
+    if errors_only(audit(bundle, plan)):
+        raise ValueError("La auditoría tiene errores. Corrige el horario antes de exportar.")
+    students = {a["Matricula"]: a for a in bundle["students"]}
+    cohorts = defaultdict(list)
+    for row in roster(bundle, plan):
+        student = students[row["Matricula"]]
+        cohorts[student["Carrera"], student["Grupo"]].append(row)
+    schedules = defaultdict(list)
+    for row in reservations(bundle, plan):
+        schedules[row["Carrera"], row["Grupo"]].append(f"{row['Día']}: {row['Horario']}")
+    book = Workbook()
+    book.remove(book.active)
+    for index, ((career, cohort), rows) in enumerate(sorted(cohorts.items()), 1):
+        # Numeric prefix guarantees unique names even after truncation/sanitizing.
+        title = re.sub(r"[\[\]:*?/\\]", "-", f"{index:03} {career} {cohort}")[:31].strip("'")
+        ws = book.create_sheet(title)
+        append_text_safe(ws, [f"Inglés · {career} · Grupo {cohort}"])
+        append_text_safe(ws, ["Horario común: " + " | ".join(schedules[career, cohort])])
+        append_text_safe(ws, HEADERS)
+        for row in sorted(rows, key=lambda r: (r["Nombre"], r["Matricula"])):
+            append_text_safe(ws, [row[h] for h in HEADERS])
+        style_sheet(ws, [16, 36, 14, 22, 17, 29, 30, 27])
+        ws.merge_cells("A1:H1")
+        ws.merge_cells("A2:H2")
+        ws.row_dimensions[1].height = 30
+        ws.row_dimensions[2].height = 48
+        for cell in ws[3]:
+            cell.fill = PatternFill("solid", fgColor="17324D")
+            cell.font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+        ws.freeze_panes = "A4"
+        ws.auto_filter.ref = f"A3:H{ws.max_row}"
+        ws.print_title_rows = "1:3"
+        ws.print_area = f"A1:H{ws.max_row}"
+        ws.oddFooter.center.text = "Página &P de &N"
+    stream = BytesIO()
+    book.save(stream)
+    return stream.getvalue()

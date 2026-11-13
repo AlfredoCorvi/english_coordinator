@@ -11,8 +11,8 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
 from ingles.audit import audit, errors_only
-from ingles.domain import DAYS, periods
-from ingles.exchange import group_summary, roster, teacher_load, period_label
+from ingles.domain import DAYS, block_minutes, daily_agenda, period_count, periods, time_label
+from ingles.exchange import group_summary, roster, teacher_load
 
 
 def export_pdf(bundle, plan):
@@ -44,7 +44,11 @@ def export_pdf(bundle, plan):
 
     now = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M")
     story.extend([p("Planeación de inglés", "Title"), p(f"Coordinación académica · Generado {now} (Ciudad de México)"), Spacer(1, 5 * mm)])
-    story.append(p(f"{len(bundle['students'])} alumnos · {len(plan['groups'])} grupos · 7 horas semanales por grupo", "Heading2"))
+    s = bundle["settings"]
+    story.append(p(f"{len(bundle['students'])} alumnos · {len(plan['groups'])} grupos · 7 periodos semanales por grupo", "Heading2"))
+    minutes = block_minutes(s)
+    story.append(p(f"Jornada: {s['start_time']} - {s['end_time']} · {period_count(s)} periodos disponibles por día."))
+    story.append(p(f"Periodos de {s['period_minutes']} min; {minutes // 60} h {minutes % 60:02} min de clase por bloque. Receso diario: {s['break_start']} - {s['break_end']}, sin clases. Carga docente expresada en horas de reloj."))
     mode = {"family": "Familias A / B / C", "cefr": "Niveles A1 / A2 / B1 / B2 / C1", "course": "Curso exacto"}[bundle["settings"]["grouping"]]
     story.append(p(f"Agrupación: {mode}. Cupo máximo: {bundle['settings']['max_group']}. Auditoría: sin errores; {len(issues)} avisos."))
     story.append(Spacer(1, 4 * mm))
@@ -60,10 +64,14 @@ def export_pdf(bundle, plan):
     for block in bundle["blocks"]:
         if block["Bloque"] not in used_blocks:
             continue
-        story.extend([PageBreak(), p(block["Bloque"], "Title"), p("Horario semanal · siete horas", "Heading2")])
-        grid = [{"Periodo": f"{i} · {period_label(bundle['settings'], i)}", **{d: "Inglés" if i in periods(block[d], bundle['settings']['periods_per_day']) else "" for d in DAYS}}
-                for i in range(1, bundle["settings"]["periods_per_day"] + 1)]
-        table(["Periodo", *DAYS], grid, [44, 43, 43, 43, 43, 43])
+        story.extend([PageBreak(), p(block["Bloque"], "Title"), p(f"Horario semanal · siete periodos de {s['period_minutes']} min", "Heading2")])
+        grid = []
+        for row in daily_agenda(s):
+            pause = row["kind"] == "break"
+            label = f"{time_label(row['start'])}-{time_label(row['end'])}"
+            grid.append({"Periodo": f"{'Receso' if pause else row['period']} · {label}",
+                         **{d: "Receso · sin clases" if pause else ("Inglés" if row["period"] in periods(block[d], period_count(s)) else "") for d in DAYS}})
+        table(["Periodo", *DAYS], grid, [44, 43, 43, 43, 43, 43], compact=True)
         rows = [g for g in summary if g["Bloque"] == block["Bloque"]]
         table(["Grupo Inglés", "Nivel agrupado", "Docente", "Edificio", "Salón", "Alumnos"], rows, [32, 33, 90, 30, 39, 35])
     by_group = defaultdict(list)

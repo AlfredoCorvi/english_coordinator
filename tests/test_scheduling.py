@@ -14,7 +14,7 @@ def small():
     b = empty_bundle()
     b["settings"]["solver_seconds"] = 3
     b["blocks"] = propose_blocks(8)[:2]
-    b["teachers"] = [{"ID": "D1", "Nombre": "Ana", "Edificios": "1,2", "Horas máximas": "14", **{d: "*" for d in DAYS}}]
+    b["teachers"] = [{"ID": "D1", "matricula_docente": "D1", "Nombre": "Ana", "Edificios": "1,2", "Horas máximas": "14", **{d: "*" for d in DAYS}}]
     b["rooms"] = [{"ID": "R1", "Salón": "101", "Edificio": "1", "Capacidad": "30", **{d: "*" for d in DAYS}}]
     b["students"] = [{"Matricula": f"{i:05}", "Nombre": f"Alumno {i}", "Carrera": "Ingeniería", "Grupo": "1A", "Edificio": "1", "Nivel": "Basic 1", "Bloque fijo": ""} for i in range(8)]
     return b
@@ -41,7 +41,7 @@ def test_demo_complete_and_family_groups():
 
 def test_grouping_modes(small):
     small["rooms"].append(dict(small["rooms"][0], ID="R2", **{"Salón": "102"}))
-    small["teachers"].append(dict(small["teachers"][0], ID="D2", Nombre="Bea"))
+    small["teachers"].append(dict(small["teachers"][0], ID="D2", matricula_docente="D2", Nombre="Bea"))
     small["students"][0]["Nivel"] = "Basic 3"
     assert len(solved(small)["groups"]) == 1
     small["settings"]["grouping"] = "cefr"
@@ -79,7 +79,7 @@ def test_cannot_split_classmates_to_work_around_missing_resources(small):
 def test_splitting_is_joint_with_capacity(small):
     small["rooms"][0]["Capacidad"] = "5"
     small["rooms"].append(dict(small["rooms"][0], ID="R2", **{"Salón": "102"}))
-    small["teachers"].append(dict(small["teachers"][0], ID="D2", Nombre="Bea"))
+    small["teachers"].append(dict(small["teachers"][0], ID="D2", matricula_docente="D2", Nombre="Bea"))
     small["settings"]["min_group"] = 4
     result = solved(small)
     assert len(result["groups"]) == 2
@@ -89,7 +89,7 @@ def test_splitting_is_joint_with_capacity(small):
 @pytest.mark.parametrize("change", ["hours", "availability", "room", "building", "minimum"])
 def test_impossible_constraints(small, change):
     if change == "hours":
-        small["teachers"][0]["Horas máximas"] = "6"
+        small["teachers"][0]["Horas máximas"] = "5"
     elif change == "availability":
         small["teachers"][0].update({d: "8" for d in DAYS})
     elif change == "room":
@@ -119,14 +119,14 @@ def test_overlap_different_block_names(small):
 def test_multiple_groups_in_same_block(small):
     small["students"][0]["Nivel"] = "Advanced 1"
     small["rooms"].append(dict(small["rooms"][0], ID="R2", **{"Salón": "102"}))
-    small["teachers"].append(dict(small["teachers"][0], ID="D2", Nombre="Bea"))
+    small["teachers"].append(dict(small["teachers"][0], ID="D2", matricula_docente="D2", Nombre="Bea"))
     plan = solved(small)
     assert len(plan["groups"]) == 2
     assert {g["level"] for g in plan["groups"]} == {"A", "C"}
     assert len({g["block"] for g in plan["groups"]}) == 1
 
 
-def test_transfer_time_is_enforced(small):
+def test_adjacent_periods_in_permitted_buildings_are_allowed(small):
     small["settings"]["strict_building"] = True
     small["blocks"] = [{"Bloque": "Uno", "Lunes": "1,2", "Martes": "1,2", "Miércoles": "1", "Jueves": "1", "Viernes": "1"},
                        {"Bloque": "Dos", "Lunes": "3,4", "Martes": "3,4", "Miércoles": "2", "Jueves": "2", "Viernes": "2"}]
@@ -135,11 +135,9 @@ def test_transfer_time_is_enforced(small):
         a["Edificio"] = "1" if i < 4 else "2"
         a["Grupo"] = "1A" if i < 4 else "2A"
         a["Bloque fijo"] = "Uno" if i < 4 else "Dos"
-    assert solve(small).status == "INFEASIBLE"
-    small["settings"]["transfer_periods"] = 0
     plan = solved(small)
-    small["settings"]["transfer_periods"] = 1
-    assert "Traslado docente" in {i["Regla"] for i in audit(small, plan)}
+    small["settings"]["transfer_periods"] = 1  # Obsolete settings no longer impose a gap.
+    assert not errors_only(audit(small, plan))
 
 
 def test_audit_detects_omission_duplicates_and_level(small):
@@ -186,7 +184,7 @@ def test_manual_split_cohort_fails_audit_and_export(small):
 def test_validation_unknown_duplicate_and_hours(small):
     small["students"].append(small["students"][0].copy())
     small["students"][0]["Nivel"] = "Inventado"
-    small["blocks"][0]["Lunes"] = "8"
+    small["blocks"][0]["Lunes"] = ""
     errors = validate_bundle(small)
     assert any("duplicado" in e for e in errors)
     assert any("desconocido" in e for e in errors)

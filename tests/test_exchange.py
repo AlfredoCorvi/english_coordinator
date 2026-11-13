@@ -4,7 +4,7 @@ import pytest
 from openpyxl import Workbook, load_workbook
 from pypdf import PdfReader
 
-from ingles.domain import demo_bundle
+from ingles.domain import demo_bundle, period_count
 from ingles.exchange import (HEADERS, export_excel, map_rows, read_excel, reservations,
                              suggested_mapping, template_excel)
 from ingles.reports import export_pdf
@@ -76,7 +76,8 @@ def test_templates_round_trip():
     b = demo_bundle()
     for kind in ("students", "teachers", "rooms", "blocks"):
         headers, rows = read_excel(template_excel(kind, b), kind)
-        assert map_rows(kind, rows, suggested_mapping(kind, headers)) == b[kind]
+        assert "ID" not in headers
+        assert map_rows(kind, rows, suggested_mapping(kind, headers), b[kind]) == b[kind]
 
 
 def test_invalid_plan_cannot_be_exported(sample):
@@ -93,6 +94,6 @@ def test_reservations_are_seven_shared_hours_per_cohort(sample):
     rows = reservations(b, p)
     tuples = [tuple(row.values()) for row in rows]
     assert len(tuples) == len(set(tuples))
-    assert all(row["Periodo reservado"] in range(1, 9) for row in rows)
+    assert all(row["Periodo reservado"] in range(1, period_count(b["settings"]) + 1) for row in rows)
     for cohort in {(a["Carrera"], a["Grupo"]) for a in b["students"]}:
         assert sum((r["Carrera"], r["Grupo"]) == cohort for r in rows) == 7

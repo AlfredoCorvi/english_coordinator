@@ -4,6 +4,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from copy import deepcopy
+from uuid import uuid4
 
 DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 BUILDINGS = ["1", "2", "3", "4", "Idiomas"]
@@ -14,15 +15,16 @@ LEVELS = {
 }
 SCHEMAS = {
     "students": ["Matricula", "Nombre", "Grupo", "Carrera", "Edificio", "Nivel", "Bloque fijo"],
-    "teachers": ["ID", "Nombre", "Edificios", "Horas máximas", *DAYS],
+    "teachers": ["ID", "matricula_docente", "Nombre", "Edificios", "Horas máximas", *DAYS],
     "rooms": ["ID", "Salón", "Edificio", "Capacidad", *DAYS],
     "blocks": ["Bloque", *DAYS],
 }
 KEYS = {"students": "Matricula", "teachers": "ID", "rooms": "ID", "blocks": "Bloque"}
 DEFAULT_SETTINGS = {
-    "periods_per_day": 8, "start_time": "07:00", "period_minutes": 60,
+    "periods_per_day": 11, "start_time": "07:00", "end_time": "15:45", "period_minutes": 45,
+    "break_start": "11:30", "break_end": "11:55",
     "grouping": "family", "max_group": 30, "min_group": 1,
-    "strict_building": False, "transfer_periods": 1,
+    "strict_building": False,
     "solver_seconds": 30,
 }
 
@@ -100,12 +102,78 @@ def slots(row, count):
     return {(day, p) for day in DAYS for p in periods(row.get(day, ""), count)}
 
 
-def transfer_conflict(first, second, gap):
-    return any(d == e and abs(p - q) <= gap for d, p in first for e, q in second)
+def time_minutes(value):
+    hour, minute = map(int, value.split(":"))
+    return hour * 60 + minute
 
 
-def canonical_rows(kind, rows):
+def time_label(value):
+    return f"{value // 60:02}:{value % 60:02}"
+
+
+def daily_periods(settings):
+    """Full teaching periods only. A break is never an assignable period.
+
+    If a complete period would overlap the break, start it after the break.
+    Any leftover minutes before the break remain free; classes are not split.
+    Call after validate_settings for user-provided settings.
+    """
+    cursor = time_minutes(settings["start_time"])
+    pause_start = time_minutes(settings["break_start"])
+    pause_end = time_minutes(settings["break_end"])
+    duration = settings["period_minutes"]
     result = []
+    end = time_minutes(settings["end_time"])
+    while cursor + duration <= end and duration > 0:
+        if cursor < pause_end and cursor + duration > pause_start:
+            cursor = pause_end
+        if cursor + duration > end:
+            break
+        result.append({"period": len(result) + 1, "start": cursor, "end": cursor + duration})
+        cursor += duration
+    return result
+
+
+def daily_agenda(settings):
+    rows = [{**row, "kind": "class"} for row in daily_periods(settings)]
+    start, end = time_minutes(settings["break_start"]), time_minutes(settings["break_end"])
+    if start < time_minutes(settings["end_time"]) and end > time_minutes(settings["start_time"]):
+        start = max(start, time_minutes(settings["start_time"]))
+        end = min(end, time_minutes(settings["end_time"]))
+        rows.append({"period": None, "start": start, "end": end, "kind": "break"})
+    return sorted(rows, key=lambda row: row["start"])
+
+
+def period_count(settings):
+    return len(daily_periods(settings))
+
+
+def period_label(settings, p):
+    if not 1 <= p <= period_count(settings):
+        raise ValueError("Periodo fuera de la jornada.")
+    row = daily_periods(settings)[p - 1]
+    return f"{time_label(row['start'])}–{time_label(row['end'])}"
+
+
+def block_minutes(settings):
+    return 7 * settings["period_minutes"]
+
+
+def public_columns(kind):
+    return [column for column in SCHEMAS[kind] if column != "ID"]
+
+
+def catalog_key(kind, row):
+    if kind == "teachers":
+        return clean(row.get("matricula_docente", ""))
+    if kind == "rooms":
+        return building(row.get("Edificio", "")), norm(row.get("Salón", ""))
+    return clean(row.get(KEYS[kind], ""))
+
+
+def canonical_rows(kind, rows, existing=()):
+    result = []
+    known = {catalog_key(kind, row): row["ID"] for row in existing} if kind in ("teachers", "rooms") else {}
     for source in rows:
         row = {c: clean(source.get(c, "")) for c in SCHEMAS[kind]}
         if not any(row.values()):
@@ -114,6 +182,8 @@ def canonical_rows(kind, rows):
             row["Edificio"] = building(row["Edificio"])
         if kind == "students":
             row["Nivel"] = canonical_level(row["Nivel"])
+        if kind in ("teachers", "rooms"):
+            row["ID"] = row["ID"] or known.get(catalog_key(kind, row)) or uuid4().hex
         result.append(row)
     return result
 
@@ -124,8 +194,8 @@ def empty_bundle():
 
 def validate_settings(s):
     errors = []
-    limits = {"periods_per_day": (1, 16), "period_minutes": (60, 60), "max_group": (25, 30),
-              "min_group": (1, 30), "transfer_periods": (0, 4), "solver_seconds": (1, 300)}
+    limits = {"period_minutes": (1, 180), "max_group": (25, 35),
+              "min_group": (1, 35), "solver_seconds": (1, 300)}
     for key, (lo, hi) in limits.items():
         value = s.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
@@ -134,12 +204,16 @@ def validate_settings(s):
         errors.append("El cupo mínimo no puede superar al máximo.")
     if s.get("grouping") not in ("family", "cefr", "course"):
         errors.append("El criterio de agrupación no es válido.")
-    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(s.get("start_time", ""))):
-        errors.append("La hora inicial debe tener formato HH:MM.")
-    elif isinstance(s.get("periods_per_day"), int):
-        h, m = map(int, s["start_time"].split(":"))
-        if h * 60 + m + s["periods_per_day"] * 60 > 1440:
-            errors.append("La jornada no puede terminar después de medianoche.")
+    for key, name in (("start_time", "Inicio de jornada"), ("end_time", "Fin de jornada"), ("break_start", "Inicio del receso"), ("break_end", "Fin del receso")):
+        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(s.get(key, ""))):
+            errors.append(f"{name}: usa una hora válida en formato HH:MM.")
+    if not errors:
+        if time_minutes(s["break_start"]) >= time_minutes(s["break_end"]):
+            errors.append("El fin del receso debe ser posterior a su inicio, dentro del mismo día.")
+        elif time_minutes(s["start_time"]) >= time_minutes(s["end_time"]):
+            errors.append("El fin de jornada debe ser posterior al inicio, dentro del mismo día.")
+        elif not daily_periods(s):
+            errors.append("La jornada no tiene espacio para un periodo completo fuera del receso. Amplía la jornada o reduce la duración.")
     return errors
 
 
@@ -147,11 +221,12 @@ def validate_table(kind, rows, settings):
     errors = []
     seen = set()
     required = {"students": SCHEMAS["students"][:-1],
-                "teachers": ["ID", "Nombre", "Edificios", "Horas máximas"],
+                "teachers": ["ID", "matricula_docente", "Nombre", "Edificios", "Horas máximas"],
                 "rooms": ["ID", "Salón", "Edificio", "Capacidad"], "blocks": ["Bloque"]}[kind]
     physical_rooms = set()
+    teacher_numbers = set()
     for index, row in enumerate(rows, 2):
-        label = f"Fila {index} ({row.get(KEYS[kind], '')})"
+        label = f"Fila {index} ({catalog_key(kind, row)})"
         for c in required:
             if not clean(row.get(c, "")):
                 errors.append(f"{label}: falta {c}.")
@@ -159,6 +234,11 @@ def validate_table(kind, rows, settings):
         if key in seen:
             errors.append(f"{label}: identificador duplicado '{key}'.")
         seen.add(key)
+        if kind == "teachers":
+            number = clean(row.get("matricula_docente", ""))
+            if number in teacher_numbers:
+                errors.append(f"{label}: matrícula docente duplicada '{number}'.")
+            teacher_numbers.add(number)
         if kind == "students":
             if not cefr(row.get("Nivel", "")):
                 errors.append(f"{label}: nivel de inglés desconocido.")
@@ -180,9 +260,9 @@ def validate_table(kind, rows, settings):
             physical_rooms.add(physical)
         if kind != "students":
             try:
-                times = slots(row, settings["periods_per_day"])
+                times = slots(row, period_count(settings))
                 if kind == "blocks" and len(times) != 7:
-                    errors.append(f"{label}: el bloque tiene {len(times)} horas; necesita exactamente 7.")
+                    errors.append(f"{label}: el bloque tiene {len(times)} periodos; necesita exactamente 7.")
                 elif not times:
                     errors.append(f"{label}: falta disponibilidad.")
             except ValueError as exc:
@@ -212,8 +292,15 @@ def validate_bundle(bundle):
 
 
 def propose_blocks(count):
-    """Plantillas de siete horas; no sustituyen la búsqueda de asignaciones."""
+    """Plantillas de siete periodos; no sustituyen la búsqueda de asignaciones."""
     remaining = {d: list(range(1, count + 1)) for d in DAYS}
+    # Distribute the unused remainder over the week, preserving the last period
+    # of each day. Automatic templates therefore cover the entire jornada.
+    spare = count * len(DAYS) % 7
+    candidates = [(d, p) for p in range(1, count + 1) for d in DAYS]
+    for i in range(spare):
+        d, p = candidates[(i + 1) * len(candidates) // (spare + 1)]
+        remaining[d].remove(p)
     blocks = []
     while sum(map(len, remaining.values())) >= 7:
         chosen = {d: [] for d in DAYS}
@@ -228,7 +315,8 @@ def propose_blocks(count):
 
 def demo_bundle():
     bundle = empty_bundle()
-    bundle["blocks"] = propose_blocks(8)[:3]
+    available = propose_blocks(period_count(bundle["settings"]))
+    bundle["blocks"] = [available[0], available[len(available) // 2], available[-1]]
     courses = list(LEVELS)
     for i in range(180):
         bundle["students"].append({"Matricula": f"{i + 1:07}", "Nombre": f"Estudiante de ejemplo {i + 1:03}",
@@ -236,6 +324,6 @@ def demo_bundle():
             "Edificio": str(i % 4 + 1), "Nivel": courses[i % len(courses)], "Bloque fijo": ""})
     for i, b in enumerate(BUILDINGS):
         bundle["rooms"].append({"ID": f"S{i + 1}", "Salón": "101", "Edificio": b, "Capacidad": "30", **{d: "*" for d in DAYS}})
-        bundle["teachers"].append({"ID": f"D{i + 1}", "Nombre": f"Docente de ejemplo {i + 1}", "Edificios": b,
+        bundle["teachers"].append({"ID": f"D{i + 1}", "matricula_docente": f"D{i + 1}", "Nombre": f"Docente de ejemplo {i + 1}", "Edificios": b,
                                     "Horas máximas": "21", **{d: "*" for d in DAYS}})
     return bundle
