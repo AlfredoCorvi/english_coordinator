@@ -44,6 +44,71 @@ def test_full_day_and_templates_use_final_periods():
     assert all(r["end"] <= 940 and (r["end"] <= 690 or r["start"] >= 715) for r in periods)
 
 
+@pytest.mark.parametrize("daily", [2, 8, 9, 11])
+def test_requested_block_count_preserves_seven_periods_and_no_overlap(daily):
+    maximum = daily * len(DAYS) // 7
+    for desired in range(1, maximum + 1):
+        blocks = propose_blocks(daily, desired)
+        assert len(blocks) == desired
+        assert [b["Bloque"] for b in blocks] == [f"Bloque {i + 1}" for i in range(desired)]
+        occupied = set()
+        for block in blocks:
+            times = slots(block, daily)
+            assert len(times) == 7 and not occupied & times
+            occupied |= times
+        if desired > 1:
+            assert min(p for _, p in occupied) == 1
+            assert max(p for _, p in occupied) == daily
+
+
+@pytest.mark.parametrize("desired", [0, -1, 1.5, True, 8])
+def test_invalid_requested_block_count_is_rejected(desired):
+    with pytest.raises(ValueError):
+        propose_blocks(11, desired)
+
+
+def test_block_quantity_is_reviewed_then_persisted(tmp_path, monkeypatch, sample):
+    path = tmp_path / "block_count.sqlite3"
+    monkeypatch.setenv("INGLES_DB_PATH", str(path))
+    store = Store(path)
+    revision = store.save(sample, 0, "Inicial")
+    at = AppTest.from_file(APP).run()
+    at.radio(key="nav").set_value("Bloques y reglas").run()
+    at.session_state["rule_tabs"] = "Bloques semanales"
+    at.run()
+    count = next(w for w in at.number_input if w.label == "Cantidad de bloques a proponer")
+    assert count.value == len(sample["blocks"])
+    count.set_value(5).run()
+    next(b for b in at.button if b.label == "Proponer bloques sin superposición").click().run()
+    assert not at.exception
+    assert len(at.session_state[f"draft_blocks_{revision}"]) == 5
+    assert store.load() == (sample, revision)  # Preview never overwrites saved blocks.
+    at.button(key="save_blocks").click().run()
+    saved, new_revision = store.load()
+    assert not at.exception and new_revision == revision + 1
+    assert len(saved["blocks"]) == 5
+    assert at.session_state["rule_tabs"] == "Bloques semanales"
+    assert not validate_table("blocks", saved["blocks"], saved["settings"])
+    restarted = AppTest.from_file(APP).run()
+    restarted.radio(key="nav").set_value("Bloques y reglas").run()
+    assert not restarted.exception
+    assert next(w for w in restarted.number_input if w.label == "Cantidad de bloques a proponer").value == 5
+
+
+def test_short_week_cannot_propose_blocks(tmp_path, monkeypatch, sample):
+    path = tmp_path / "short_week.sqlite3"
+    monkeypatch.setenv("INGLES_DB_PATH", str(path))
+    sample["settings"]["end_time"] = "07:45"
+    Store(path).save(sample, 0, "Un periodo al día")
+    at = AppTest.from_file(APP).run()
+    at.radio(key="nav").set_value("Bloques y reglas").run()
+    assert not at.exception
+    assert next(b for b in at.button if b.label == "Proponer bloques sin superposición").disabled
+    assert any("menos de siete periodos" in w.value for w in at.warning)
+    with pytest.raises(ValueError, match="máximo 0"):
+        propose_blocks(1, 1)
+
+
 def test_solver_can_use_only_last_periods(sample):
     sample["settings"].update(start_time="08:30", end_time="15:40")
     block = {"Bloque": "Tarde", **{d: "9" for d in DAYS}}

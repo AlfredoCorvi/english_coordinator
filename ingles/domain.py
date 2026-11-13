@@ -291,8 +291,14 @@ def validate_bundle(bundle):
     return errors
 
 
-def propose_blocks(count):
+def propose_blocks(count, desired=None):
     """Plantillas de siete periodos; no sustituyen la búsqueda de asignaciones."""
+    maximum = count * len(DAYS) // 7
+    if desired is not None:
+        if isinstance(desired, bool) or not isinstance(desired, int) or desired < 1:
+            raise ValueError("La cantidad de bloques debe ser un entero positivo.")
+        if desired > maximum:
+            raise ValueError(f"La jornada permite como máximo {maximum} bloques de siete periodos sin superposición. Reduce la cantidad o amplía la jornada.")
     remaining = {d: list(range(1, count + 1)) for d in DAYS}
     # Distribute the unused remainder over the week, preserving the last period
     # of each day. Automatic templates therefore cover the entire jornada.
@@ -310,6 +316,12 @@ def propose_blocks(count):
             chosen[day].append(remaining[day].pop(0))
         blocks.append({"Bloque": f"Bloque {len(blocks) + 1}",
                        **{d: ",".join(map(str, chosen[d])) for d in DAYS}})
+    if desired is not None and desired < len(blocks):
+        # Select patterns across the full day, rather than keeping only the
+        # earliest ones. Preserve each complete seven-period pattern.
+        indexes = ([len(blocks) // 2] if desired == 1 else
+                   [i * (len(blocks) - 1) // (desired - 1) for i in range(desired)])
+        blocks = [{**blocks[index], "Bloque": f"Bloque {i + 1}"} for i, index in enumerate(indexes)]
     return blocks
 
 

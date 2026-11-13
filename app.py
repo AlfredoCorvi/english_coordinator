@@ -555,10 +555,20 @@ elif page == "Bloques y reglas":
     with blocks_tab:
         st.write("Un bloque define siete periodos semanales. Varios grupos pueden compartirlo con distintos salones y docentes.")
         st.caption("La generación elige entre estos bloques. Para aprovechar una jornada ampliada, propone nuevos bloques o edita los existentes incluyendo los últimos periodos; revisa después la disponibilidad real.")
-        if st.button("Proponer bloques sin superposición"):
-            st.session_state[f"draft_blocks_{revision}"] = propose_blocks(period_count(bundle["settings"]))
+        daily_count = period_count(bundle["settings"])
+        maximum_blocks = daily_count * len(DAYS) // 7
+        if maximum_blocks:
+            desired_blocks = st.number_input("Cantidad de bloques a proponer", min_value=1, max_value=maximum_blocks,
+                                             value=min(len(bundle["blocks"]) or maximum_blocks, maximum_blocks), step=1,
+                                             key=f"block_count_{revision}")
+            st.caption(f"La jornada permite hasta {maximum_blocks} bloques sin superposición ({daily_count * len(DAYS)} periodos semanales disponibles). Cada bloque mantiene siete periodos; la propuesta se distribuye entre el inicio y el final de la jornada.")
+            st.caption(f"Actualmente hay {len(bundle['blocks'])} bloques guardados. Elige la cantidad, propone, revisa y pulsa Validar y guardar para aplicarla. Los bloques manuales pueden solaparse si hay docentes y salones compatibles.")
+        else:
+            st.warning("La jornada tiene menos de siete periodos semanales disponibles. Amplíala en Reglas de asignación antes de proponer bloques.")
+        if st.button("Proponer bloques sin superposición", disabled=maximum_blocks == 0):
+            st.session_state[f"draft_blocks_{revision}"] = propose_blocks(daily_count, int(desired_blocks))
             st.session_state["editor_nonce_blocks"] = st.session_state.get("editor_nonce_blocks", 0) + 1
-            st.success("Propuesta en revisión. Valida y guarda la tabla para usarla.")
+            st.success(f"{desired_blocks} bloques en revisión. Valida y guarda la tabla para usarlos.")
         table_editor("blocks", "Bloques")
 
 elif page == "Generar":
@@ -742,7 +752,7 @@ elif page in ("Resultados", "Auditoría"):
                 if errors or stale:
                     st.info("La exportación se habilita cuando esta versión está actualizada y sin errores de auditoría.")
                 else:
-                    st.write("El Excel general incluye el listado con las ocho columnas solicitadas, una hoja por grupo de inglés, horarios, carga docente, auditoría y reservas para las carreras.")
+                    st.write("El Excel general incluye el listado de general de alumnos, una hoja por grupo de inglés, horarios, carga docente, auditoría y reservas para las carreras.")
                     st.write("El Excel por grupos de carrera incluye una hoja imprimible por Carrera + Grupo, con su horario común y el nivel, grupo de inglés, docente y salón de cada alumno.")
                     st.write("El PDF incluye el resumen, horarios semanales, carga docente y listas por grupo.")
                     if st.button("Preparar Excel y PDF", type="primary"):
