@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 from copy import deepcopy
@@ -27,8 +28,8 @@ PAGES = ["Vista general", "Datos", "Bloques y reglas", "Generar", "Resultados", 
 PAGE_ICONS = {"Vista general": "home", "Datos": "database", "Bloques y reglas": "tune", "Generar": "bolt", "Resultados": "calendar_month", "Auditoría": "fact_check"}
 
 # Paleta del calendario: un color suave por grupo de inglés
-CAL_COLORS = [("#E6ECFC", "#34408A"), ("#E3F4EC", "#2D6A55"), ("#FCEBE0", "#8A4B2B"), ("#EFEBFA", "#5B4A9A"),
-              ("#FAE6EC", "#8A3F5B"), ("#E3F2F6", "#2F6477"), ("#F5F2DC", "#6B6224"), ("#EDEEF2", "#454B5E")]
+CAL_COLORS = [("#DDF3E6", "#256B4F"), ("#E8F3DC", "#4A6B1F"), ("#D5EEE9", "#1F6B62"), ("#EEF5DF", "#5A6B1C"),
+              ("#E0F0E4", "#2F6B45"), ("#D6F0E8", "#1E6B57"), ("#E5EFD6", "#556B2F"), ("#CFE9DA", "#1F5E43")]
 
 st.markdown("""<style>
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap');
@@ -40,9 +41,9 @@ st.markdown("""<style>
     --paper: #F4F6FA;
     --card: #FFFFFF;
     --line: #E1E6EF;
-    --blue: #2F5BEA;
-    --blue-dark: #2347C2;
-    --blue-soft: #E8EEFF;
+    --blue: #37866A;
+    --blue-dark: #2D6F58;
+    --blue-soft: #E3F4EC;
     --amber: #FFB703;
     --amber-soft: #FFF4D6;
     --green: #12805C;
@@ -56,7 +57,7 @@ html, body, .stApp, .stMarkdown, [data-testid="stMarkdownContainer"] p, label, i
 [data-testid="stCaptionContainer"], [data-testid="stMetricLabel"], [data-baseweb="tab"] {
     font-family: 'Instrument Sans', -apple-system, 'Segoe UI', Roboto, sans-serif !important;
 }
-h1, h2, h3, .hero h2, .page-head h1, .sb-name {
+h1, h2, h3, .page-head h1, .sb-name {
     font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif !important;
     color: var(--ink) !important;
     letter-spacing: -0.02em !important;
@@ -97,28 +98,6 @@ hr { border-color: var(--line) !important; margin: 2.2rem 0 1rem !important; }
 }
 .page-head h1 { margin: 0 !important; padding: 0 !important; line-height: 1.1 !important; }
 .page-head p { margin: 4px 0 0 !important; color: var(--muted); font-size: 1rem; max-width: 760px; }
-
-/* ---------- Hero con mini horario ---------- */
-.hero {
-    display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; align-items: center;
-    background: var(--ink); border-radius: 22px; padding: 38px 44px; margin: 4px 0 26px; color: #fff;
-    box-shadow: 0 20px 40px -22px rgba(20, 33, 61, .55);
-}
-.hero h2 { color: #fff !important; font-size: 2.35rem !important; line-height: 1.08 !important; margin: 0 0 12px !important; }
-.hero p { color: #C9D3E6 !important; font-size: 1.04rem; line-height: 1.6; margin: 0 0 18px !important; max-width: 520px; }
-.hero-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.hero-tags span {
-    background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.16); color: #E5ECFA;
-    padding: 5px 12px; border-radius: 999px; font-size: .82rem; font-weight: 500;
-}
-.mini-week { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 16px; }
-.mini-days, .mini-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.mini-days { margin-bottom: 8px; }
-.mini-days b { text-align: center; font-size: .72rem; font-weight: 600; color: #9FB0CF; }
-.mini-grid span { height: 26px; border-radius: 7px; background: rgba(255,255,255,.07); }
-.mini-grid .c0 { background: #7FA2FF; } .mini-grid .c1 { background: #5FD3A6; } .mini-grid .c2 { background: #FFB76B; }
-.mini-grid .c3 { background: #C3A6F5; } .mini-grid .brk { background: var(--amber); opacity: .85; grid-column: 1 / -1; height: 14px; }
-@media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding: 28px; } }
 
 /* ---------- Métricas ---------- */
 [data-testid="stMetric"] {
@@ -176,7 +155,7 @@ div.stButton > button, div.stDownloadButton > button, [data-testid="stFormSubmit
 }
 div.stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] {
     background: var(--blue) !important; border: 1px solid var(--blue) !important; color: #fff !important;
-    box-shadow: 0 6px 14px -6px rgba(47, 91, 234, .6) !important;
+    box-shadow: 0 6px 14px -6px rgba(55, 134, 106, .6) !important;
 }
 div.stButton > button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover { background: var(--blue-dark) !important; border-color: var(--blue-dark) !important; }
 div.stButton > button[kind="secondary"], div.stDownloadButton > button {
@@ -185,14 +164,14 @@ div.stButton > button[kind="secondary"], div.stDownloadButton > button {
 div.stButton > button[kind="secondary"]:hover, div.stDownloadButton > button:hover {
     border-color: var(--blue) !important; color: var(--blue) !important; background: var(--blue-soft) !important;
 }
-button:focus-visible, [data-baseweb="tab"]:focus-visible { outline: 3px solid rgba(47, 91, 234, .35) !important; outline-offset: 2px; }
+button:focus-visible, [data-baseweb="tab"]:focus-visible { outline: 3px solid rgba(55, 134, 106, .35) !important; outline-offset: 2px; }
 
 /* ---------- Pestañas ---------- */
 .stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; background: transparent; padding: 0; }
 .stTabs [data-baseweb="tab"] {
     height: 44px; padding: 0 16px; border-radius: 10px 10px 0 0; color: var(--muted); font-weight: 600; background: transparent;
 }
-.stTabs [data-baseweb="tab"]:hover { color: var(--ink); background: rgba(47, 91, 234, .06); }
+.stTabs [data-baseweb="tab"]:hover { color: var(--ink); background: rgba(55, 134, 106, .08); }
 .stTabs [aria-selected="true"] { color: var(--blue) !important; font-weight: 700 !important; }
 .stTabs [data-baseweb="tab-highlight"] { background-color: var(--blue) !important; height: 3px !important; }
 .stTabs [data-baseweb="tab-border"] { display: none; }
@@ -210,8 +189,8 @@ button:focus-visible, [data-baseweb="tab"]:focus-visible { outline: 3px solid rg
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""<style>
-:root { --ink:#2B2F42; --ink-2:#565C75; --muted:#7A8096; --paper:#F8F8FB; --line:#ECEDF3; --blue:#5F67C4; --blue-dark:#4C54AE; --blue-soft:#ECEEFB;
-        --amber-soft:#FDF5DD; --green:#3E8E74; --green-soft:#E3F4EC; --lav:#EFEBFA; --radius:16px; --shadow:0 1px 2px rgba(43,47,66,.04); }
+:root { --ink:#2B2F42; --ink-2:#565C75; --muted:#7A8096; --paper:#F6FAF7; --line:#E3EDE7; --blue:#37866A; --blue-dark:#2D6F58; --blue-soft:#E3F4EC;
+        --amber-soft:#FDF5DD; --green:#3E8E74; --green-soft:#E3F4EC; --lav:#E3F4EC; --radius:16px; --shadow:0 1px 2px rgba(43,47,66,.04); }
 .stApp { background: var(--paper); }
 h1 { font-size: 2.2rem !important; font-weight: 700 !important; }
 .topbar { border-radius: 14px; padding: 10px 16px; box-shadow: none; }
@@ -219,49 +198,53 @@ h1 { font-size: 2.2rem !important; font-weight: 700 !important; }
 .pill { background: var(--green-soft); box-shadow: none; }
 .page-head-icon { width: 52px; height: 52px; border-radius: 16px; background: var(--lav); box-shadow: none; font-size: 24px; }
 .page-head h1 { font-size: 2.2rem !important; }
-.hero { background: linear-gradient(135deg,#EFEBFA 0%,#E5F0FA 55%,#E3F4EC 100%); animation: none; border: 1px solid #E6E8F2; box-shadow: none; padding: 44px 48px; border-radius: 24px; }
-.hero h2 { color: var(--ink) !important; font-size: 2.5rem !important; line-height: 1.1 !important; letter-spacing: -0.03em !important; }
-.hero p { color: var(--ink-2) !important; font-size: 1.05rem; }
-.hero-tags span { background: rgba(255,255,255,.75); border: 1px solid #E1E4F0; color: var(--ink-2); font-weight: 500; }
-.mini-week { background: rgba(255,255,255,.7); border: 1px solid #E6E8F2; transform: none; backdrop-filter: none; box-shadow: none; }
-.mini-days b { color: var(--muted); }
-.mini-grid span { background: #F0F1F6; height: 28px; }
-.mini-grid .c0 { background: #CFD6F5; } .mini-grid .c1 { background: #CDEBDD; } .mini-grid .c2 { background: #FADDC4; } .mini-grid .c3 { background: #E0D4F5; }
-.mini-grid .brk { background: #F5E3B0; opacity: 1; }
 [data-testid="stMetric"] { border: 1px solid var(--line) !important; border-image: none !important; border-radius: var(--radius) !important; padding: 20px 22px !important; box-shadow: none !important; transform: none !important; }
 [data-testid="stMetricValue"] { font-size: 2.3rem !important; font-weight: 700 !important; }
 [data-testid="stVerticalBlockBorderWrapper"] { box-shadow: none; }
-[data-testid="stVerticalBlockBorderWrapper"]:hover { border-color: #D9DCEE !important; box-shadow: none; }
+[data-testid="stVerticalBlockBorderWrapper"]:hover { border-color: #CFE3D7 !important; box-shadow: none; }
 .step-num { width: 34px; height: 34px; background: var(--lav); color: var(--blue); box-shadow: none; }
 .rule-chip { border-left: 1px solid var(--line); border-radius: 12px; }
-[data-testid="stSidebar"] { background: #F1F0F8 !important; border-right: 1px solid #E6E7F0 !important; }
+[data-testid="stSidebar"] { background: #EEF6F1 !important; border-right: 1px solid #DDEBE3 !important; }
 [data-testid="stSidebar"] * { color: var(--ink-2); }
-.sb-head { border-bottom: 1px solid #E2E3EE; }
-.sb-logo { background: #fff; box-shadow: none; border: 1px solid #E2E3EE; }
+.sb-head { border-bottom: 1px solid #DAE9E0; }
+.sb-logo { background: #fff; box-shadow: none; border: 1px solid #DAE9E0; }
 .sb-name { color: var(--ink) !important; }
 .sb-sub { color: var(--muted) !important; }
 [data-testid="stSidebar"] [data-testid="stRadio"] label p { color: var(--ink-2) !important; font-weight: 500; }
-[data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background: rgba(95,103,196,.08); }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background: rgba(55,134,106,.10); }
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) { background: #fff; box-shadow: 0 1px 3px rgba(43,47,66,.08); }
 [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p { color: var(--blue-dark) !important; font-weight: 600; }
-.sb-card { background: #fff; border: 1px solid #E6E7F0; }
+.sb-card { background: #fff; border: 1px solid #DDEBE3; }
 .sb-card-title { color: var(--ink) !important; }
 .sb-card-title em { color: var(--green) !important; }
-.sb-row { border-bottom: 1px solid #F0F1F6; }
+.sb-row { border-bottom: 1px solid #E8F1EC; }
 .sb-row span { color: var(--muted) !important; }
 .sb-row strong { color: var(--ink) !important; }
 div.stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primary"], [data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] { background: var(--blue) !important; border: none !important; box-shadow: none !important; }
 div.stButton > button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover { background: var(--blue-dark) !important; filter: none; transform: none; }
-div.stButton > button[kind="secondary"], div.stDownloadButton > button { border: 1px solid #DDE0EC !important; }
+div.stButton > button[kind="secondary"], div.stDownloadButton > button { border: 1px solid #D3E5DB !important; }
 .stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid var(--line); gap: 4px; }
 .stTabs [data-baseweb="tab"] { background: transparent; border: none; border-radius: 10px; height: 40px; }
 .stTabs [aria-selected="true"] { background: var(--lav) !important; color: var(--blue-dark) !important; border: none; }
 [data-testid="stForm"], [data-testid="stDataFrame"], [data-testid="stDataEditor"], [data-testid="stExpander"] { box-shadow: none; }
-[data-testid="stFileUploaderDropzone"] { background: #FBFBFD; border-color: #D9DCEA; }
+[data-testid="stFileUploaderDropzone"] { background: #F8FCFA; border-color: #CFE3D7; }
 .ico { stroke: var(--blue-dark); width: 24px; height: 24px; }
+[data-testid="stMetricValue"] { color: #37866A !important; }
+.sb-logo-img { display: block; width: auto; height: auto; max-width: 170px; max-height: 70px; object-fit: contain; }
+.sb-head:has(.sb-logo-img) { flex-direction: column; align-items: flex-start; gap: 14px; }
 .topbar-mark .ico { width: 17px; height: 17px; }
 .sb-logo .ico { width: 22px; height: 22px; }
 .page-head-icon .ico { width: 26px; height: 26px; }
+/* ---------- Tarjetas en verde ---------- */
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1) [data-testid="stMetric"] { background: #E3F4EC !important; border-color: #CBE7D8 !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(1) [data-testid="stVerticalBlockBorderWrapper"] { background: #E3F4EC; border-color: #CBE7D8 !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) [data-testid="stMetric"] { background: #E6F1E4 !important; border-color: #CFE3CB !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) [data-testid="stVerticalBlockBorderWrapper"] { background: #E6F1E4; border-color: #CFE3CB !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) [data-testid="stMetric"] { background: #DDF1EE !important; border-color: #C5E4DE !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(3) [data-testid="stVerticalBlockBorderWrapper"] { background: #DDF1EE; border-color: #C5E4DE !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(4) [data-testid="stMetric"] { background: #EEF5DF !important; border-color: #DBE8C2 !important; }
+[data-testid="stMetricLabel"] { color: var(--ink-2) !important; }
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"] .step-num { background: #fff; }
 </style>""", unsafe_allow_html=True)
 
 
@@ -277,6 +260,18 @@ def flash(message):
 
 
 ICONS = {'book': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg>', 'database': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>', 'sliders': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h8M20 6h-2M4 12h2M20 12h-8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></svg>', 'bolt': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>', 'calendar': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>', 'check': '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8.5 11l2 2 3.5-4"/></svg>'}
+
+
+ICONS["home"] = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-6h6v6"/></svg>'
+
+
+def sidebar_logo():
+    """Logo del proyecto en la barra lateral (img/logo-utc.png); si no existe, un icono."""
+    logo = ROOT / "img" / "logo-utc.png"
+    if logo.is_file():
+        data = base64.b64encode(logo.read_bytes()).decode()
+        return f'<img class="sb-logo-img" src="data:image/png;base64,{data}" alt="Logo UTC">'
+    return '<div class="sb-logo">' + ICONS["book"] + '</div>'
 
 
 def page_head(icon, title, subtitle):
@@ -404,9 +399,9 @@ def choose_plan():
 
 def cell_style(value):
     if value == "Receso · sin clases":
-        return "background-color:#FFF4D6;color:#8A5A00;font-weight:600;font-style:italic"
+        return "background-color:#EEF1EF;color:#5E6B64;font-weight:600;font-style:italic"
     if not value:
-        return "color:#B6BFCE"
+        return "color:#B4C2BA"
     group = value.split(" · ")[0]
     bg, fg = CAL_COLORS[int(hashlib.md5(group.encode()).hexdigest(), 16) % len(CAL_COLORS)]
     return f"background-color:{bg};color:{fg};font-weight:600"
@@ -436,7 +431,7 @@ if "next_tab" in st.session_state:
 with st.sidebar:
     st.markdown("""
     <div class="sb-head">
-        <div class="sb-logo"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
+        """ + sidebar_logo() + """
         <div>
             <div class="sb-name">Coordinación</div>
             <div class="sb-sub">Planeación de Inglés</div>
@@ -470,23 +465,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 if page == "Vista general":
-    mini_cells = "".join(f'<span class="{c}"></span>' for c in
-                         ["c0", "c1", "", "c2", "c3", "c1", "", "c0", "", "c2", "brk", "c3", "c0", "c1", "", "", "c2", "c3", "c0", "c1"][:10]) \
-        + '<span class="brk"></span>' \
-        + "".join(f'<span class="{c}"></span>' for c in ["c2", "", "c0", "c3", "c1", "c1", "c2", "", "c0", "c3"])
-    st.markdown(f"""
-    <div class="hero">
-        <div>
-            <h2>Un lugar para organizar cada grupo de inglés.</h2>
-            <p>Reúne alumnos, docentes y espacios. Genera una propuesta de horarios y revisa cada asignación antes de compartirla.</p>
-            <div class="hero-tags"><span>Grupos por nivel</span><span>Horario común por carrera</span><span>Auditoría automática</span></div>
-        </div>
-        <div class="mini-week">
-            <div class="mini-days"><b>Lun</b><b>Mar</b><b>Mié</b><b>Jue</b><b>Vie</b></div>
-            <div class="mini-grid">{mini_cells}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    page_head("home", "Dashboard", "Resumen de la planeación de inglés: datos cargados y siguientes pasos.")
     cols = st.columns(4)
     for col, kind, name in zip(cols, ["students", "teachers", "rooms", "blocks"], ["Alumnos", "Docentes", "Salones", "Bloques"]):
         col.metric(name, len(bundle[kind]))
@@ -763,7 +742,7 @@ elif page in ("Resultados", "Auditoría"):
                     st.caption("Carga expresada en horas de reloj. El receso no suma tiempo de clase.")
                     loads = pd.DataFrame(teacher_load(bundle, plan))
                     st.dataframe(loads, hide_index=True, width="stretch")
-                    st.bar_chart(loads, x="Docente", y=["Horas asignadas", "Horas libres"], color=["#8E94DB", "#E4E6F2"])
+                    st.bar_chart(loads, x="Docente", y=["Horas asignadas", "Horas libres"], color=["#37866A", "#CFE8D8"])
                 with checks_tab:
                     checks = ["Cada alumno tiene exactamente una asignación", "Nivel compatible con su grupo de inglés", "Siete periodos completos en cada bloque", "Ninguna clase invade el receso",
                               "Cupos de grupo y salón respetados", "Docentes y salones sin superposición", "Disponibilidad y carga docente respetadas",
