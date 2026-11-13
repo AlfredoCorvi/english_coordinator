@@ -525,9 +525,16 @@ elif page == "Bloques y reglas":
             right.caption(f"Cada bloque conserva siete periodos: {weekly_minutes // 60} h {weekly_minutes % 60:02} min efectivos de clase. La carga máxima docente se expresa en horas de reloj.")
             right.caption("Los periodos disponibles se calculan hasta el fin de jornada, antes y después del receso. Los minutos sobrantes no forman un periodo parcial.")
             st.info("Todos los alumnos de un mismo grupo de carrera deben compartir el bloque semanal de inglés, aunque pertenezcan a distintos grupos de inglés según su nivel. Esta regla es obligatoria.")
-            strict = st.checkbox("Exigir que cada alumno curse inglés en su edificio de origen", value=s["strict_building"])
+
+            # Opción oculta del frontend: se conserva la configuración del edificio de origen.
+            #strict = st.checkbox("Exigir que cada alumno curse inglés en su edificio de origen", value=s["strict_building"])
+            strict = s["strict_building"]
+
             st.caption("Con la restricción de edificio desactivada, se busca reducir los cambios de edificio después de minimizar el número de grupos. El docente solo se asigna a sus edificios permitidos.")
-            seconds = st.number_input("Tiempo máximo de búsqueda (segundos)", min_value=1, max_value=300, value=s["solver_seconds"])
+
+            # Opción oculta del frontend: se conserva el tiempo máximo de búsqueda configurado.
+            #seconds = st.number_input("Tiempo máximo de búsqueda (segundos)", min_value=1, max_value=300, value=s["solver_seconds"])
+            seconds = s["solver_seconds"]
             if st.form_submit_button("Guardar reglas", type="primary"):
                 new_settings = dict(s, grouping=grouping, max_group=maximum, min_group=int(minimum),
                                     start_time=start.strftime("%H:%M"), end_time=end.strftime("%H:%M"), period_minutes=int(duration),
@@ -574,8 +581,50 @@ elif page == "Generar":
             st.warning(f"Los bloques guardados aún no usan el último periodo ({last}). Para aprovechar el final de jornada, edítalos o propone bloques nuevos en Bloques semanales.")
         st.info("Cada grupo de carrera comparte un único bloque de inglés. El Excel incluirá sus siete periodos reservados para planear después las materias regulares sin cruces.")
         st.caption("Cada ejecución conserva los horarios anteriores. Un límite de tiempo sin solución se informa como búsqueda inconclusa, no como imposibilidad.")
+
+        
         if st.button("Generar propuesta", type="primary"):
-            with st.spinner("Buscando una asignación completa y auditando el resultado…"):
+            # Overlay que congela la pantalla mientras se procesa
+            st.markdown("""
+                <style>
+                #gen-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0, 0, 0, 0.45);
+                    z-index: 999999;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 1rem;
+                    cursor: not-allowed;
+                    pointer-events: all;
+                }
+                #gen-overlay .gen-spinner {
+                    width: 56px;
+                    height: 56px;
+                    border: 6px solid rgba(255,255,255,0.3);
+                    border-top-color: #ffffff;
+                    border-radius: 50%;
+                    animation: gen-spin 0.9s linear infinite;
+                }
+                #gen-overlay .gen-label {
+                    color: #ffffff;
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    letter-spacing: 0.02em;
+                    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+                }
+                @keyframes gen-spin { to { transform: rotate(360deg); } }
+                </style>
+                <div id="gen-overlay">
+                    <div class="gen-spinner"></div>
+                    <div class="gen-label">Generando propuesta, por favor espera…</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            with st.spinner("Buscando una asignación completa y auditando el resultado…", show_time=True):
+
                 result = solve(bundle)
                 if result.success:
                     issues = audit(bundle, result.payload())
