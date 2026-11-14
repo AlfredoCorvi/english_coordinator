@@ -1,0 +1,17 @@
+# Servicio de pago: SQLite requiere el disco persistente declarado abajo.
+services:
+  - type: web
+    name: planeacion-ingles
+    runtime: python
+    plan: starter
+    numInstances: 1
+    buildCommand: python -m pip install -r requirements.txt
+    startCommand: python -m streamlit run app.py --server.address=0.0.0.0 --server.port=$PORT --server.headless=true
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: INGLES_DB_PATH
+        value: /var/data/ingles.sqlite3
+    disk:
+      name: ingles-data
+      mountPath: /var/data
+      sizeGB: 1

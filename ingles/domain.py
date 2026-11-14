@@ -25,7 +25,7 @@ DEFAULT_SETTINGS = {
     "break_start": "11:30", "break_end": "11:55",
     "grouping": "family", "max_group": 30, "min_group": 1,
     "strict_building": False,
-    "solver_seconds": 30,
+    "solver_seconds": 120,
 }
 
 

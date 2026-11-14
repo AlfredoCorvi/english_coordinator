@@ -29,6 +29,50 @@ def sample():
     return b
 
 
+def test_search_limit_can_be_saved_reloaded_and_used_by_solver(tmp_path, monkeypatch, sample):
+    from ortools.sat.python import cp_model
+
+    path = tmp_path / "search_limit.sqlite3"
+    monkeypatch.setenv("INGLES_DB_PATH", str(path))
+    sample["settings"]["solver_seconds"] = 30  # A saved value predating the new default.
+    store = Store(path)
+    revision = store.save(sample, 0, "Inicial")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.radio(key="nav").set_value("Bloques y reglas").run()
+    control = next(w for w in at.number_input if w.label == "Tiempo máximo de búsqueda (segundos)")
+    assert control.value == 30
+    assert control.proto.min == 1 and control.proto.max == 300
+    control.set_value(120)
+    next(b for b in at.button if b.label == "Guardar reglas").click().run()
+    assert not at.exception
+    saved, new_revision = store.load()
+    assert new_revision == revision + 1
+    assert saved["settings"]["solver_seconds"] == 120
+    assert all(saved[kind] == sample[kind] for kind in ("students", "teachers", "rooms", "blocks"))
+
+    restarted = AppTest.from_file(APP, default_timeout=30).run()
+    restarted.radio(key="nav").set_value("Bloques y reglas").run()
+    assert not restarted.exception
+    assert next(w for w in restarted.number_input if w.label == "Tiempo máximo de búsqueda (segundos)").value == 120
+
+    limits = []
+    original_solve = cp_model.CpSolver.solve
+
+    def record_limit(solver, *args, **kwargs):
+        limits.append(solver.parameters.max_time_in_seconds)
+        return original_solve(solver, *args, **kwargs)
+
+    monkeypatch.setattr(cp_model.CpSolver, "solve", record_limit)
+    restarted.radio(key="nav").set_value("Generar").run()
+    next(b for b in restarted.button if b.label == "Generar propuesta").click().run()
+    assert not restarted.exception
+    assert limits == [120]
+    assert restarted.radio(key="nav").value == "Resultados"
+    plan = store.get_plan(store.plans()[0]["id"])
+    assert plan["revision"] == new_revision
+    assert not errors_only(audit(saved, plan["payload"]))
+
+
 def test_full_day_and_templates_use_final_periods():
     s = dict(DEFAULT_SETTINGS, start_time="08:30", end_time="15:40")
     assert not validate_settings(s)

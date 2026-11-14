@@ -532,9 +532,9 @@ elif page == "Bloques y reglas":
 
             st.caption("Con la restricción de edificio desactivada, se busca reducir los cambios de edificio después de minimizar el número de grupos. El docente solo se asigna a sus edificios permitidos.")
 
-            # Opción oculta del frontend: se conserva el tiempo máximo de búsqueda configurado.
-            #seconds = st.number_input("Tiempo máximo de búsqueda (segundos)", min_value=1, max_value=300, value=s["solver_seconds"])
-            seconds = s["solver_seconds"]
+            seconds = st.number_input("Tiempo máximo de búsqueda (segundos)", min_value=1, max_value=300,
+                                      value=s["solver_seconds"], step=1,
+                                      help="Límite de búsqueda de la propuesta. Puede terminar antes; guarda las reglas para aplicar el cambio.")
             if st.form_submit_button("Guardar reglas", type="primary"):
                 new_settings = dict(s, grouping=grouping, max_group=maximum, min_group=int(minimum),
                                     start_time=start.strftime("%H:%M"), end_time=end.strftime("%H:%M"), period_minutes=int(duration),

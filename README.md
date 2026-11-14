@@ -4,6 +4,8 @@ Aplicación local en **Streamlit**, con persistencia SQLite y asignación median
 
 Documentación funcional: [casos de uso, actores y reglas de negocio](docs/casos_de_uso.md).
 
+Despliegue en la nube: [guía para Render](docs/render.md). Incluye un `render.yaml` con servicio de pago y disco persistente para SQLite; la aplicación todavía no incorpora autenticación.
+
 ## Iniciar en Windows
 
 Desde `C:\Users\josea\software_projects\hackaton`:
